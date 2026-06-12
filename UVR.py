@@ -49,7 +49,23 @@ from separate import (
     save_format, clear_gpu_cache,  # Utility functions
     cuda_available, mps_available, #directml_available,
 )
-from playsound import playsound
+from playsound import playsound as _playsound_original
+def playsound(sound_file, *args, **kwargs):
+    import subprocess
+    import shutil
+    import sys
+    if sys.platform.startswith('linux'):
+        for player in ['aplay', 'paplay', 'pw-play']:
+            if shutil.which(player):
+                try:
+                    subprocess.Popen([player, sound_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return
+                except Exception:
+                    continue
+    try:
+        _playsound_original(sound_file, *args, **kwargs)
+    except Exception as e:
+        print(f"Chime sound playback skipped/failed: {e}")
 from typing import List
 import onnx
 import re
@@ -93,7 +109,7 @@ def get_execution_time(function, name):
 
 PREVIOUS_PATCH_WIN = 'UVR_Patch_10_6_23_4_27'
 
-is_dnd_compatible = True
+is_dnd_compatible = False
 banner_placement = -2
 
 if OPERATING_SYSTEM=="Darwin":
@@ -1517,6 +1533,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         # --Update Widgets--
         self.update_available_models()
+        if self.active_custom_config_name:
+            selection_file = self.active_custom_config_name.replace(" ", "_")
+            if os.path.isfile(os.path.join(SETTINGS_CACHE_DIR, f'{selection_file}.json')):
+                self.save_current_settings_var.set(self.active_custom_config_name)
         self.update_main_widget_states()
         self.update_loop()
         self.update_button_states()
@@ -1551,16 +1571,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         if chosen_font_name:
             gui_data.sv_ttk.set_theme("dark", chosen_font_name, 10)
-            if chosen_font_file:
-                pyglet_font.add_file(chosen_font_file)
+            # if chosen_font_file:
+            #     pyglet_font.add_file(chosen_font_file)
             self.font_set = Font(family=chosen_font_name, size=FONT_SIZE_F2)
             self.font_entry = Font(family=chosen_font_name, size=FONT_SIZE_F2)
         else:
-            pyglet_font.add_file(FONT_MAPPER[MAIN_FONT_NAME])
-            pyglet_font.add_file(FONT_MAPPER[SEC_FONT_NAME])
+            # pyglet_font.add_file(FONT_MAPPER[MAIN_FONT_NAME])
+            # pyglet_font.add_file(FONT_MAPPER[SEC_FONT_NAME])
             gui_data.sv_ttk.set_theme("dark", MAIN_FONT_NAME, 10)
             self.font_set = Font(family=SEC_FONT_NAME, size=FONT_SIZE_F2)
             self.font_entry = Font(family=MAIN_FONT_NAME, size=FONT_SIZE_F2)
+
     
     def process_iteration(self):
         self.iteration = self.iteration + 1
@@ -4335,7 +4356,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         settings_save = tk.Toplevel(root)
         
-        settings_save_var = tk.StringVar(value='')
+        default_name = self.active_custom_config_name if self.active_custom_config_name else ''
+        settings_save_var = tk.StringVar(value=default_name)
 
         settings_save_Frame = self.menu_FRAME_SET(settings_save)
         settings_save_Frame.grid(row=1)  
@@ -4372,6 +4394,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Dumps current application settings to a json named after user input"""
         
         if settings_save_name:
+            self.active_custom_config_name = settings_save_name
             self.save_current_settings_var.set(settings_save_name)
             settings_save_name = settings_save_name.replace(" ", "_")
             current_settings = self.save_values(app_close=False)
@@ -6097,6 +6120,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         elif selection == RESET_TO_DEFAULT:
             self.save_current_settings_var.set(SELECT_SAVED_SET)
+            self.active_custom_config_name = None
             self.load_saved_settings(DEFAULT_DATA, process_method)
 
         elif selection == OPT_SEPARATOR_SAVE:
@@ -6105,6 +6129,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def handle_saved_settings(self, selection, process_method):
         """Handles actions for saved settings."""
 
+        self.active_custom_config_name = selection.replace("_", " ")
         selection = selection.replace(" ", "_")
         saved_ensemble_path = os.path.join(SETTINGS_CACHE_DIR, f'{selection}.json')
 
@@ -6717,6 +6742,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def load_saved_vars(self, data):
         """Initializes primary Tkinter vars"""
         
+        self.active_custom_config_name = data.get('active_custom_config_name', None)
+        
         for key, value in DEFAULT_DATA.items():
             if not key in data.keys():
                 data = {**data, **{key:value}}
@@ -7125,6 +7152,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'fileTwoEntry': self.fileTwoEntry_var.get(),
             'fileTwoEntry_Full': self.fileTwoEntry_Full_var.get(),
             'DualBatch_inputPaths': self.DualBatch_inputPaths,
+            'active_custom_config_name': self.active_custom_config_name,
             #'model_hash_table': model_hash_table,
         }
 

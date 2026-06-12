@@ -132,9 +132,9 @@ class ImagePath():
         if size is not None:
             size = (int(size[0]), int(size[1]))
             if keep_aspect:
-                img = img.resize((size[0], int(size[0] * ratio)), Image.ANTIALIAS)
+                img = img.resize((size[0], int(size[0] * ratio)), Image.LANCZOS)
             else:
-                img = img.resize(size, Image.ANTIALIAS)
+                img = img.resize(size, Image.LANCZOS)
                 
         return ImageTk.PhotoImage(img)
 
@@ -334,11 +334,11 @@ MAIN_ROW_2_X_2 = 1
 LOW_MENU_Y_1 = 18
 LOW_MENU_Y_2 = 16
 SUB_ENT_ROW_X = -2
-MAIN_ROW_WIDTH = -53
+MAIN_ROW_WIDTH = -25
 MAIN_ROW_ALIGN_WIDTH = -86
 CHECK_BOX_Y = 0
-CHECK_BOX_X = 20
-CHECK_BOX_WIDTH = -49
+CHECK_BOX_X = 5
+CHECK_BOX_WIDTH = -15
 CHECK_BOX_HEIGHT = 2
 LEFT_ROW_WIDTH = -10
 LABEL_HEIGHT = -5
