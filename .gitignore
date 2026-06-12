@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL support
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+env/
+
+# App-specific runtime/session data
+data.pkl
+gui_data/cr_text.txt
+
+# Temp directories
+temp_sample_clips/
+ensemble_temps/
+
+# User Saved Settings & Ensembles
+gui_data/saved_settings/*.json
+gui_data/saved_ensembles/*.json
+
+# Large model files
+*.pth
+models/MDX_Net_Models/*.ckpt
+models/MDX_Net_Models/*.onnx
+models/Demucs_Models/v3_v4_repo/*.th
+models/Demucs_Models/v3_v4_repo/*.yaml
