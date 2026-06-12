@@ -7284,9 +7284,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.is_demucs_pre_proc_model_inst_mix_var.set(loaded_setting['is_demucs_pre_proc_model_inst_mix'])
             # Trigger UI update so stem options reflect the loaded Demucs model
             self.selection_action_models(loaded_setting['demucs_model'])
+            # Re-apply segment/overlap in case widget validation reset them
+            self.segment_var.set(loaded_setting['segment'])
+            self.overlap_var.set(loaded_setting['overlap'])
         
         if process_method == MDX_ARCH_TYPE or effective_method == MDX_ARCH_TYPE or is_default_reset:
             self.mdx_net_model_var.set(loaded_setting['mdx_net_model'])
+            self.mdx_segment_size_var.set(loaded_setting['mdx_segment_size'])#
             self.chunks_var.set(loaded_setting['chunks'])
             self.margin_var.set(loaded_setting['margin'])
             self.compensate_var.set(loaded_setting['compensate'])
@@ -7310,6 +7314,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             # Trigger UI update so overlap/segment widget layout reflects the loaded MDX model
             # (standard MDX uses integer overlap_mdx; MDX-C uses float overlap_mdx23)
             self.selection_action_models(loaded_setting['mdx_net_model'])
+            # Re-apply after selection_action_models in case widget validation (var_validation)
+            # reset the var to its default because the old widget's regex pattern rejected the value
+            self.mdx_segment_size_var.set(loaded_setting['mdx_segment_size'])
+            self.overlap_mdx_var.set(loaded_setting['overlap_mdx'])
+            self.overlap_mdx23_var.set(loaded_setting['overlap_mdx23'])
         
         if is_default_reset:
             self.is_save_all_outputs_ensemble_var.set(loaded_setting['is_save_all_outputs_ensemble'])
