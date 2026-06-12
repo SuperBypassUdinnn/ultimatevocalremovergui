@@ -1755,7 +1755,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             relx=1, rely=0, relwidth=0, relheight=0)
         self.help_hints(self.stop_Button, text=STOP_HELP)
         
-        self.stop_expand_Button = ttk.Button(master=self, image=self.down_img, command=self.show_stop_menu)
+        self.stop_expand_Button = ttk.Button(master=self, text="▼", command=self.show_stop_menu)
         self.stop_expand_Button.place(x=X_STOP_MENU_BUTTON_1080P, y=BUTTON_Y_1080P, width=20, height=HEIGHT_GENERIC_BUTTON_1080P,
                             relx=1, rely=0, relwidth=0, relheight=0)
         
@@ -1822,7 +1822,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=15)
         self.clear_queue_button.pack(side="right", padx=5)
         
-        self.chime_toggle_button = ttk.Button(queue_buttons_frame, text=CHIME_ON_TEXT if self.is_task_complete_var.get() else CHIME_OFF_TEXT, command=self.toggle_chime, width=12)
+        self.chime_toggle_button = ttk.Button(queue_buttons_frame, text=CHIME_ON_TEXT if self.is_task_complete_var.get() else CHIME_OFF_TEXT, command=self.toggle_chime, width=3)
         self.chime_toggle_button.pack(side="right", padx=5)
         
         self.is_task_complete_var.trace_add('write', self.update_chime_button_text)
@@ -6704,14 +6704,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def show_stop_menu(self):
         x = self.stop_expand_Button.winfo_rootx()
         y = self.stop_expand_Button.winfo_rooty() + self.stop_expand_Button.winfo_height()
-        self.stop_menu.post(x, y)
+        try:
+            self.stop_menu.tk_popup(x, y)
+        finally:
+            self.stop_menu.grab_release()
 
     def confirm_stop_process(self, stop_all=False):
         """Asks for confirmation before halting active process"""
         
         self.auto_save()
 
-        if self.thread_check(self.active_processing_thread):
+        if self.active_processing_thread and self.active_processing_thread.is_alive():
             confirm = messagebox.askyesno(parent=root, title=STOP_PROCESS_CONFIRM[0], message=STOP_PROCESS_CONFIRM[1])
 
             if confirm:
