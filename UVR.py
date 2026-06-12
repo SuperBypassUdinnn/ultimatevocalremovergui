@@ -341,6 +341,75 @@ def drop(event, accept_mode: str = 'files'):
     else:
         return    
 
+class QueueTask:
+    def __init__(self, task_id, root):
+        self.id = task_id
+        self.status = TASK_STATUS_PENDING
+        
+        # Determine process method and freeze UI variables
+        self.process_method = root.chosen_process_method_var.get()
+        self.export_path = root.export_path_var.get()
+        self.input_paths = root.inputPaths
+        self.save_format = root.save_format_var.get()
+        self.mp3_bit_set = root.mp3_bit_set_var.get()
+        self.wav_type_set = root.wav_type_set_var.get()
+        self.is_model_sample_mode = root.model_sample_mode_var.get()
+        self.is_testing_audio = root.is_testing_audio_var.get()
+        self.is_add_model_name = root.is_add_model_name_var.get()
+        self.is_create_model_folder = root.is_create_model_folder_var.get()
+        self.ensemble_main_stem = root.ensemble_main_stem_var.get()
+        self.is_secondary_stem_only = root.is_secondary_stem_only_var.get()
+        self.is_primary_stem_only = root.is_primary_stem_only_var.get()
+        self.is_task_complete = root.is_task_complete_var.get()
+        
+        # Audio Tools snapshot variables
+        self.chosen_audio_tool = root.chosen_audio_tool_var.get()
+        self.choose_algorithm = root.choose_algorithm_var.get()
+        self.DualBatch_inputPaths = root.DualBatch_inputPaths
+        self.fileOneEntry_Full = root.fileOneEntry_Full_var.get()
+        self.fileTwoEntry_Full = root.fileTwoEntry_Full_var.get()
+        
+        # Model snapshot or Audio Tool snapshot
+        if self.process_method == AUDIO_TOOLS:
+            self.model_data = None
+            self.ensemble = None
+            self.is_ensemble = False
+            
+            # Instantiate audio tool on the main thread
+            if self.chosen_audio_tool == TIME_STRETCH:
+                self.audio_tool = AudioTools(TIME_STRETCH)
+            elif self.chosen_audio_tool == CHANGE_PITCH:
+                self.audio_tool = AudioTools(CHANGE_PITCH)
+            elif self.chosen_audio_tool == MANUAL_ENSEMBLE:
+                self.audio_tool = Ensembler(is_manual_ensemble=True)
+            elif self.chosen_audio_tool in [ALIGN_INPUTS, MATCH_INPUTS]:
+                self.audio_tool = AudioTools(self.chosen_audio_tool)
+            else:
+                self.audio_tool = AudioTools(self.chosen_audio_tool)
+        else:
+            self.audio_tool = None
+            if self.process_method == ENSEMBLE_MODE:
+                self.model_data = root.assemble_model_data()
+                self.ensemble = Ensembler()
+                self.export_path = self.ensemble.ensemble_folder_name
+                self.is_ensemble = True
+            elif self.process_method == VR_ARCH_PM:
+                self.model_data = root.assemble_model_data(root.vr_model_var.get(), VR_ARCH_TYPE)
+                self.ensemble = None
+                self.is_ensemble = False
+            elif self.process_method == MDX_ARCH_TYPE:
+                self.model_data = root.assemble_model_data(root.mdx_net_model_var.get(), MDX_ARCH_TYPE)
+                self.ensemble = None
+                self.is_ensemble = False
+            elif self.process_method == DEMUCS_ARCH_TYPE:
+                self.model_data = root.assemble_model_data(root.demucs_model_var.get(), DEMUCS_ARCH_TYPE)
+                self.ensemble = None
+                self.is_ensemble = False
+            else:
+                self.model_data = None
+                self.ensemble = None
+                self.is_ensemble = False
+
 class ModelData():
     def __init__(self, model_name: str, 
                  selected_process_method=ENSEMBLE_MODE, 
@@ -362,6 +431,7 @@ class ModelData():
         self.is_denoise_model = True if root.denoise_option_var.get() == DENOISE_M and os.path.isfile(DENOISER_MODEL_PATH) else False
         self.is_gpu_conversion = 0 if root.is_gpu_conversion_var.get() else -1
         self.is_normalization = root.is_normalization_var.get()#
+        self.is_replaygain = root.is_replaygain_var.get()
         self.is_use_opencl = False#True if is_opencl_only else root.is_use_opencl_var.get()
         self.is_primary_stem_only = root.is_primary_stem_only_var.get()
         self.is_secondary_stem_only = root.is_secondary_stem_only_var.get()
@@ -808,11 +878,11 @@ class Ensembler():
         
         if len(stem_outputs) > 1:
             spec_utils.ensemble_inputs(stem_outputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble)
-            save_format(stem_save_path, self.save_format, self.mp3_bit_set)
+            save_format(stem_save_path, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
         
         if self.is_save_all_outputs_ensemble:
             for i in stem_outputs:
-                save_format(i, self.save_format, self.mp3_bit_set)
+                save_format(i, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
         else:
             for i in stem_outputs:
                 try:
@@ -844,7 +914,7 @@ class Ensembler():
         algorithm_text = "" if is_bulk else f"_({root.choose_algorithm_var.get()})"
         stem_save_path = os.path.join('{}'.format(self.main_export_path),'{}{}{}.wav'.format(self.is_testing_audio, audio_file_base, algorithm_text))
         spec_utils.ensemble_inputs(audio_inputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble)
-        save_format(stem_save_path, self.save_format, self.mp3_bit_set)
+        save_format(stem_save_path, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
 
     def get_files_to_ensemble(self, folder="", prefix="", suffix=""):
         """Grab all the files to be ensembled"""
@@ -852,7 +922,7 @@ class Ensembler():
         return [os.path.join(folder, i) for i in os.listdir(folder) if i.startswith(prefix) and i.endswith(suffix)]
 
     def combine_audio(self, audio_inputs, audio_file_base):
-        save_format_ = lambda save_path:save_format(save_path, root.save_format_var.get(), root.mp3_bit_set_var.get())
+        save_format_ = lambda save_path:save_format(save_path, root.save_format_var.get(), root.mp3_bit_set_var.get(), root.is_replaygain_var.get())
         spec_utils.combine_audio(audio_inputs, 
                                  os.path.join(self.main_export_path, f"{self.is_testing_audio}{audio_file_base}"), 
                                  self.wav_type_set,
@@ -866,7 +936,7 @@ class AudioTools():
         self.wav_type_set = root.wav_type_set
         self.is_normalization = root.is_normalization_var.get()
         self.is_testing_audio = f"{time_stamp}_" if root.is_testing_audio_var.get() else ''
-        self.save_format = lambda save_path:save_format(save_path, root.save_format_var.get(), root.mp3_bit_set_var.get())
+        self.save_format = lambda save_path:save_format(save_path, root.save_format_var.get(), root.mp3_bit_set_var.get(), root.is_replaygain_var.get())
         self.align_window = TIME_WINDOW_MAPPER[root.time_window_var.get()]
         self.align_intro_val = INTRO_MAPPER[root.intro_analysis_var.get()]
         self.db_analysis_val = VOLUME_MAPPER[root.db_analysis_var.get()]
@@ -1526,6 +1596,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.model_data_table = ()
         self.ensemble_model_list = ()
         self.default_change_model_list = ()
+        
+        # --Queue State--
+        self.processing_queue = []
+        self.queue_task_counter = 0
+        self.is_queue_worker_running = False
+        self.active_queue_task = None
                 
         # --Widgets--
         self.fill_main_frame()
@@ -2175,26 +2251,42 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             top.protocol("WM_DELETE_WINDOW", lambda: None)
             parent_win = top
         
+        initial_dir = self.lastDir if (self.lastDir and os.path.isdir(self.lastDir)) else None
+        
         if dialoge_type == MULTIPLE_FILE:
             filenames = filedialog.askopenfilenames(parent=parent_win, 
-                                                    title=text)
+                                                    title=text,
+                                                    initialdir=initial_dir)
         elif dialoge_type == MAIN_MULTIPLE_FILE:
             filenames = filedialog.askopenfilenames(parent=parent_win, 
                                                     title=text,
                                                     initialfile='',
-                                                    initialdir=self.lastDir)
+                                                    initialdir=initial_dir)
         elif dialoge_type == SINGLE_FILE:
             filenames = filedialog.askopenfilename(parent=parent_win, 
-                                                   title=text)
+                                                   title=text,
+                                                   initialdir=initial_dir)
         elif dialoge_type == CHOOSE_EXPORT_FIR:
             filenames = filedialog.askdirectory(
                                     parent=parent_win,
-                                    title=f'Select Folder',)
+                                    title=f'Select Folder',
+                                    initialdir=initial_dir)
             
         if is_linux:
             print("Is Linux")
             self.linux_filebox_fix(False)
             top.destroy()
+            
+        if filenames:
+            if isinstance(filenames, (list, tuple)):
+                if len(filenames) > 0 and filenames[0]:
+                    self.lastDir = os.path.dirname(filenames[0])
+            elif isinstance(filenames, str) and filenames:
+                if dialoge_type == CHOOSE_EXPORT_FIR:
+                    self.lastDir = filenames
+                else:
+                    self.lastDir = os.path.dirname(filenames)
+            self.auto_save()
             
         return filenames
 
@@ -2292,8 +2384,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 if os.path.isfile(SPLASH_DOC):
                     os.remove(SPLASH_DOC)
             
+            EXCLUDE_FILES = ('requirements.txt', 'demucs_models.txt', 'error-log.txt')
             for dir in DIRECTORIES:
                 for temp_file in os.listdir(dir):
+                    if temp_file in EXCLUDE_FILES:
+                        continue
                     if temp_file.endswith(EXTENSIONS):
                         if os.path.isfile(os.path.join(dir, temp_file)):
                             os.remove(os.path.join(dir, temp_file))
@@ -3226,10 +3321,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         tab1 = ttk.Frame(tabControl)
         tab2 = ttk.Frame(tabControl)
         tab3 = ttk.Frame(tabControl)
+        tab4 = ttk.Frame(tabControl)
 
         tabControl.add(tab1, text = SETTINGS_GUIDE_TEXT)
         tabControl.add(tab2, text = ADDITIONAL_SETTINGS_TEXT)
         tabControl.add(tab3, text = DOWNLOAD_CENTER_TEXT)
+        tabControl.add(tab4, text = QUEUE_TAB_TEXT)
 
         tabControl.pack(expand = 1, fill ="both")
         
@@ -3241,6 +3338,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         tab3.grid_rowconfigure(0, weight=1)
         tab3.grid_columnconfigure(0, weight=1)
+
+        tab4.grid_rowconfigure(0, weight=1)
+        tab4.grid_columnconfigure(0, weight=1)
 
         self.disable_tabs = lambda:(tabControl.tab(0, state="disabled"), tabControl.tab(1, state="disabled"))
         self.enable_tabs = lambda:(tabControl.tab(0, state="normal"), tabControl.tab(1, state="normal"))        
@@ -3353,6 +3453,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         is_normalization_Option.grid()
         self.help_hints(is_normalization_Option, text=IS_NORMALIZATION_HELP)
         
+        is_replaygain_Option = ttk.Checkbutton(settings_menu_format_Frame, text=REPLAYGAIN_TEXT, width=GEN_SETTINGS_WIDTH, variable=self.is_replaygain_var) 
+        is_replaygain_Option.grid()
+        self.help_hints(is_replaygain_Option, text=IS_REPLAYGAIN_HELP)
+        
         change_model_default_Button = ttk.Button(settings_menu_format_Frame, text=CHANGE_MODEL_DEFAULTS_TEXT, command=lambda:self.pop_up_change_model_defaults(settings_menu), width=SETTINGS_BUT_WIDTH-2)#
         change_model_default_Button.grid(pady=MENU_PADDING_4)
 
@@ -3453,6 +3557,44 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                    self.model_download_mdx_var,
                                    self.model_download_demucs_var)
         
+        # Settings Tab 4 - Processing Queue
+        settings_menu_queue_Frame = self.menu_FRAME_SET(tab4)
+        settings_menu_queue_Frame.grid(row=0)
+        
+        queue_title_Label = self.menu_title_LABEL_SET(settings_menu_queue_Frame, QUEUE_TAB_TEXT)
+        queue_title_Label.grid(pady=MENU_PADDING_2)
+        
+        tree_frame = ttk.Frame(settings_menu_queue_Frame)
+        tree_frame.grid(padx=20, pady=MENU_PADDING_1)
+        
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
+        
+        self.queue_treeview = ttk.Treeview(tree_frame, columns=('id', 'inputs', 'method', 'status'), show='headings', height=10, yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.queue_treeview.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.queue_treeview.pack(side="left", fill="both", expand=True)
+        
+        self.queue_treeview.heading('id', text='ID')
+        self.queue_treeview.heading('inputs', text='Input Files')
+        self.queue_treeview.heading('method', text='Model / Method')
+        self.queue_treeview.heading('status', text='Status')
+        
+        self.queue_treeview.column('id', width=50, anchor='center')
+        self.queue_treeview.column('inputs', width=260, anchor='w')
+        self.queue_treeview.column('method', width=160, anchor='w')
+        self.queue_treeview.column('status', width=100, anchor='center')
+        
+        queue_buttons_frame = ttk.Frame(settings_menu_queue_Frame)
+        queue_buttons_frame.grid(pady=MENU_PADDING_2)
+        
+        remove_task_button = ttk.Button(queue_buttons_frame, text=REMOVE_TASK_TEXT, command=self.remove_selected_task, width=18)
+        remove_task_button.grid(row=0, column=0, padx=10)
+        
+        clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=18)
+        clear_queue_button.grid(row=0, column=1, padx=10)
+        
+        self.update_queue_ui_display()
+
         self.online_data_refresh()
 
         self.menu_placement(settings_menu, SETTINGS_GUIDE_TEXT, is_help_hints=True, close_function=lambda:close_window())
@@ -3469,6 +3611,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.active_download_thread.terminate() if self.thread_check(self.active_download_thread) else None
             self.is_menu_settings_open = False
             self.select_download_var.set('')
+            self.queue_treeview = None
             settings_menu.destroy()
 
         #self.update_checkbox_text()
@@ -4376,6 +4519,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         settings_save_name_Entry.bind(right_click_button, self.right_click_menu_popup)
         self.current_text_box = settings_save_name_Entry
         settings_save_name_Entry.focus_set()
+        settings_save_name_Entry.icursor(tk.END)
+        settings_save_name_Entry.select_range(0, tk.END)
         
         self.spacer_label(settings_save_Frame)
         
@@ -6233,12 +6378,148 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 error_msg = INVALID_ENSEMBLE if self.chosen_process_method_var.get() == ENSEMBLE_MODE else INVALID_MODEL
                 self.error_dialoge(error_msg)
                 return
-            target_function = self.process_start
-        else:
-            target_function = self.process_tool_start
+
+        # Increment counter
+        self.queue_task_counter += 1
         
-        self.active_processing_thread = KThread(target=target_function)
-        self.active_processing_thread.start()
+        # Instantiate QueueTask snapshotting the current GUI/Model state
+        task = QueueTask(self.queue_task_counter, self)
+        
+        # Append to queue
+        self.processing_queue.append(task)
+        
+        # Notify user in console
+        self.command_Text.write(f"Task #{task.id} added to the processing queue.\n")
+        
+        # Update Treeview if settings window is open
+        self.update_queue_ui_display()
+        
+        # Start queue worker if not running
+        if not self.is_queue_worker_running:
+            self.queue_worker_thread = KThread(target=self.queue_worker_loop)
+            self.queue_worker_thread.start()
+
+    def queue_worker_loop(self):
+        self.is_queue_worker_running = True
+        while self.processing_queue:
+            # Find the first pending task
+            task = None
+            for t in self.processing_queue:
+                if t.status == TASK_STATUS_PENDING:
+                    task = t
+                    break
+            if not task:
+                break
+                
+            self.active_queue_task = task
+            task.status = TASK_STATUS_RUNNING
+            self.update_queue_ui_display()
+            
+            # Reset is_process_stopped flag before starting
+            self.is_process_stopped = False
+            
+            # Prepare target function
+            if task.process_method == AUDIO_TOOLS:
+                target_function = lambda t=task: self.process_tool_start(task=t)
+            else:
+                target_function = lambda t=task: self.process_start(task=t)
+                
+            # Start the task in a KThread
+            self.active_processing_thread = KThread(target=target_function)
+            self.active_processing_thread.start()
+            
+            # Wait for the task thread to complete
+            self.active_processing_thread.join()
+            
+            # Post-processing status update
+            if self.is_process_stopped:
+                task.status = TASK_STATUS_FAILED
+                self.command_Text.write(f"\nTask {task.id} stopped by user.\n")
+            elif task.status == TASK_STATUS_RUNNING:
+                task.status = TASK_STATUS_COMPLETED
+                
+            self.active_queue_task = None
+            self.update_queue_ui_display()
+            
+        self.is_queue_worker_running = False
+        self.active_processing_thread = None
+        self.after(0, self.process_end)
+
+    def remove_selected_task(self):
+        if not hasattr(self, 'queue_treeview') or not self.queue_treeview:
+            return
+        selected = self.queue_treeview.selection()
+        if not selected:
+            return
+        
+        # Get selected item details
+        item = self.queue_treeview.item(selected[0])
+        task_id = item['values'][0]
+        
+        # Find the task in the queue
+        task_to_remove = None
+        for task in self.processing_queue:
+            if task.id == task_id:
+                task_to_remove = task
+                break
+                
+        if not task_to_remove:
+            return
+            
+        if task_to_remove.status == TASK_STATUS_RUNNING:
+            confirm = messagebox.askyesno(
+                parent=root,
+                title="Cancel Task",
+                message="Are you sure you want to cancel the currently processing task?"
+            )
+            if confirm:
+                if self.thread_check(self.active_processing_thread):
+                    try:
+                        self.active_processing_thread.terminate()
+                    finally:
+                        self.is_process_stopped = True
+                        self.command_Text.write(PROCESS_STOPPED_BY_USER)
+                        task_to_remove.status = TASK_STATUS_FAILED
+        else:
+            if task_to_remove in self.processing_queue:
+                self.processing_queue.remove(task_to_remove)
+            self.update_queue_ui_display()
+
+    def clear_task_queue(self):
+        confirm = messagebox.askyesno(
+            parent=root,
+            title="Clear Queue",
+            message="Are you sure you want to clear all pending tasks from the queue?"
+        )
+        if confirm:
+            self.processing_queue = [t for t in self.processing_queue if t.status in [TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED]]
+            self.update_queue_ui_display()
+
+    def update_queue_ui_display(self):
+        if hasattr(self, 'queue_treeview') and self.queue_treeview and self.queue_treeview.winfo_exists():
+            # Clear existing items
+            for item in self.queue_treeview.get_children():
+                self.queue_treeview.delete(item)
+            # Populate with all tasks
+            for task in self.processing_queue:
+                inputs_str = ", ".join(os.path.basename(p) for p in task.input_paths)
+                if len(task.input_paths) > 2:
+                    inputs_str = f"{len(task.input_paths)} files: " + ", ".join(os.path.basename(p) for p in task.input_paths[:2]) + "..."
+                
+                if task.process_method == AUDIO_TOOLS:
+                    method_str = task.chosen_audio_tool
+                else:
+                    if task.process_method == ENSEMBLE_MODE:
+                        method_str = "Ensemble"
+                    else:
+                        if isinstance(task.model_data, list) and task.model_data:
+                            method_str = ", ".join(m.model_name for m in task.model_data)
+                        elif task.model_data:
+                            method_str = task.model_data.model_name
+                        else:
+                            method_str = task.process_method
+                            
+                self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, task.status))
 
     def process_button_init(self):
         self.auto_save()
@@ -6311,7 +6592,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             if MODEL_MISSING_CHECK in error_message_box_text: 
                 self.update_checkbox_text()
  
-    def process_tool_start(self):
+    def process_tool_start(self, task=None):
         """Start the conversion for all the given mp3 and wav files"""
 
         def time_elapsed():
@@ -6327,7 +6608,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         def handle_ensemble(inputPaths, audio_file_base):
             self.progress_bar_main_var.set(50)
-            if self.choose_algorithm_var.get() == COMBINE_INPUTS:
+            choose_algorithm = task.choose_algorithm if task else self.choose_algorithm_var.get()
+            if choose_algorithm == COMBINE_INPUTS:
                 audio_tool.combine_audio(inputPaths, audio_file_base)
             else:
                 audio_tool.ensemble_manual(inputPaths, audio_file_base)
@@ -6351,47 +6633,68 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         multiple_files = False
         stime = time.perf_counter()
-        self.process_button_init()
-        inputPaths = self.inputPaths
+        if not task:
+            self.process_button_init()
+        inputPaths = task.input_paths if task else self.inputPaths
         is_verified_audio = True
         is_dual = False
-        is_model_sample_mode = self.model_sample_mode_var.get()
+        is_model_sample_mode = task.model_sample_mode if task else self.model_sample_mode_var.get()
+        is_task_complete = task.is_task_complete if task else self.is_task_complete_var.get()
         self.iteration = 0
         self.true_model_count = 1
         self.process_check_wav_type()
         process_complete_text = PROCESS_COMPLETE
 
-        if self.chosen_audio_tool_var.get() in [ALIGN_INPUTS, MATCH_INPUTS]:
-            if self.DualBatch_inputPaths:
-                inputPaths = tuple(self.DualBatch_inputPaths)
+        chosen_audio_tool = task.chosen_audio_tool if task else self.chosen_audio_tool_var.get()
+        if chosen_audio_tool in [ALIGN_INPUTS, MATCH_INPUTS]:
+            DualBatch_inputPaths = task.DualBatch_inputPaths if task else self.DualBatch_inputPaths
+            fileOneEntry_Full = task.fileOneEntry_Full if task else self.fileOneEntry_Full_var.get()
+            fileTwoEntry_Full = task.fileTwoEntry_Full if task else self.fileTwoEntry_Full_var.get()
+            if DualBatch_inputPaths:
+                inputPaths = tuple(DualBatch_inputPaths)
             else:
-                if not self.fileOneEntry_Full_var.get() or not self.fileTwoEntry_Full_var.get():
+                if not fileOneEntry_Full or not fileTwoEntry_Full:
                     self.command_Text.write(NOT_ENOUGH_ERROR_TEXT)
-                    self.process_end()
+                    if not task:
+                        self.process_end()
+                    else:
+                        raise RuntimeError("Not enough files selected.")
                     return
                 else:
-                    inputPaths = [(self.fileOneEntry_Full_var.get(), self.fileTwoEntry_Full_var.get())]
+                    inputPaths = [(fileOneEntry_Full, fileTwoEntry_Full)]
 
         try:
             total_files = len(inputPaths)
-            if self.chosen_audio_tool_var.get() == TIME_STRETCH:
-                audio_tool = AudioTools(TIME_STRETCH)
-                self.progress_bar_main_var.set(2)
-            elif self.chosen_audio_tool_var.get() == CHANGE_PITCH:
-                audio_tool = AudioTools(CHANGE_PITCH)
-                self.progress_bar_main_var.set(2)
-            elif self.chosen_audio_tool_var.get() == MANUAL_ENSEMBLE:
-                if self.chosen_audio_tool_var.get() == MANUAL_ENSEMBLE:
-                    audio_tool = Ensembler(is_manual_ensemble=True)
-                multiple_files = True
-                if total_files <= 1:
-                    self.command_Text.write(NOT_ENOUGH_ERROR_TEXT)
-                    self.process_end()
-                    return
-            elif self.chosen_audio_tool_var.get() in [ALIGN_INPUTS, MATCH_INPUTS]:
-                audio_tool = AudioTools(self.chosen_audio_tool_var.get())
-                self.progress_bar_main_var.set(2)
-                is_dual = True
+            if task:
+                audio_tool = task.audio_tool
+                if chosen_audio_tool in [TIME_STRETCH, CHANGE_PITCH, ALIGN_INPUTS, MATCH_INPUTS]:
+                    self.progress_bar_main_var.set(2)
+                    if chosen_audio_tool in [ALIGN_INPUTS, MATCH_INPUTS]:
+                        is_dual = True
+                elif chosen_audio_tool == MANUAL_ENSEMBLE:
+                    multiple_files = True
+                    if total_files <= 1:
+                        self.command_Text.write(NOT_ENOUGH_ERROR_TEXT)
+                        raise RuntimeError("Not enough files selected.")
+            else:
+                if self.chosen_audio_tool_var.get() == TIME_STRETCH:
+                    audio_tool = AudioTools(TIME_STRETCH)
+                    self.progress_bar_main_var.set(2)
+                elif self.chosen_audio_tool_var.get() == CHANGE_PITCH:
+                    audio_tool = AudioTools(CHANGE_PITCH)
+                    self.progress_bar_main_var.set(2)
+                elif self.chosen_audio_tool_var.get() == MANUAL_ENSEMBLE:
+                    if self.chosen_audio_tool_var.get() == MANUAL_ENSEMBLE:
+                        audio_tool = Ensembler(is_manual_ensemble=True)
+                    multiple_files = True
+                    if total_files <= 1:
+                        self.command_Text.write(NOT_ENOUGH_ERROR_TEXT)
+                        self.process_end()
+                        return
+                elif self.chosen_audio_tool_var.get() in [ALIGN_INPUTS, MATCH_INPUTS]:
+                    audio_tool = AudioTools(self.chosen_audio_tool_var.get())
+                    self.progress_bar_main_var.set(2)
+                    is_dual = True
 
             for file_num, audio_file in enumerate(inputPaths, start=1):
                 self.iteration += 1
@@ -6443,19 +6746,26 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             if total_files == 1 and not is_verified_audio:
                 self.command_Text.write(f'{error_text_console}\n{PROCESS_FAILED}')
                 self.command_Text.write(time_elapsed())
-                playsound(FAIL_CHIME) if self.is_task_complete_var.get() else None
+                playsound(FAIL_CHIME) if is_task_complete else None
+                if task:
+                    raise RuntimeError("Verification failed.")
             else:
                 self.command_Text.write('{}{}'.format(process_complete_text, time_elapsed()))
-                playsound(COMPLETE_CHIME) if self.is_task_complete_var.get() else None
+                playsound(COMPLETE_CHIME) if is_task_complete else None
 
-            self.process_end()
+            if not task:
+                self.process_end()
 
         except Exception as e:
-            self.error_log_var.set(error_text(self.chosen_audio_tool_var.get(), e))
+            self.error_log_var.set(error_text(chosen_audio_tool, e))
             self.command_Text.write(f'\n\n{PROCESS_FAILED}')
             self.command_Text.write(time_elapsed())
-            playsound(FAIL_CHIME) if self.is_task_complete_var.get() else None
-            self.process_end(error=e)
+            playsound(FAIL_CHIME) if is_task_complete else None
+            if not task:
+                self.process_end(error=e)
+            else:
+                task.status = TASK_STATUS_FAILED
+                raise e
 
     def process_determine_secondary_model(self, process_method, main_model_primary_stem, is_primary_stem_only=False, is_secondary_stem_only=False):
         """Obtains the correct secondary model data for conversion."""
@@ -6568,31 +6878,36 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         return 0
         
-    def process_start(self):
+    def process_start(self, task=None):
         """Start the conversion for all the given mp3 and wav files"""
         
         stime = time.perf_counter()
         time_elapsed = lambda:f'Time Elapsed: {time.strftime("%H:%M:%S", time.gmtime(int(time.perf_counter() - stime)))}'
-        export_path = self.export_path_var.get()
-        is_ensemble = False
+        export_path = task.export_path if task else self.export_path_var.get()
+        is_ensemble = task.is_ensemble if task else False
         self.true_model_count = 0
         self.iteration = 0
         is_verified_audio = True
-        self.process_button_init()
-        inputPaths = self.inputPaths
+        if not task:
+            self.process_button_init()
+        inputPaths = task.input_paths if task else self.inputPaths
         inputPath_total_len = len(inputPaths)
-        is_model_sample_mode = self.model_sample_mode_var.get()
+        is_model_sample_mode = task.is_model_sample_mode if task else self.model_sample_mode_var.get()
         
         try:
-            if self.chosen_process_method_var.get() == ENSEMBLE_MODE:
-                model, ensemble = self.assemble_model_data(), Ensembler()
-                export_path, is_ensemble = ensemble.ensemble_folder_name, True
-            if self.chosen_process_method_var.get() == VR_ARCH_PM:
-                model = self.assemble_model_data(self.vr_model_var.get(), VR_ARCH_TYPE)
-            if self.chosen_process_method_var.get() == MDX_ARCH_TYPE:
-                model = self.assemble_model_data(self.mdx_net_model_var.get(), MDX_ARCH_TYPE)
-            if self.chosen_process_method_var.get() == DEMUCS_ARCH_TYPE:
-                model = self.assemble_model_data(self.demucs_model_var.get(), DEMUCS_ARCH_TYPE)
+            if task:
+                model = task.model_data
+                ensemble = task.ensemble
+            else:
+                if self.chosen_process_method_var.get() == ENSEMBLE_MODE:
+                    model, ensemble = self.assemble_model_data(), Ensembler()
+                    export_path, is_ensemble = ensemble.ensemble_folder_name, True
+                if self.chosen_process_method_var.get() == VR_ARCH_PM:
+                    model = self.assemble_model_data(self.vr_model_var.get(), VR_ARCH_TYPE)
+                if self.chosen_process_method_var.get() == MDX_ARCH_TYPE:
+                    model = self.assemble_model_data(self.mdx_net_model_var.get(), MDX_ARCH_TYPE)
+                if self.chosen_process_method_var.get() == DEMUCS_ARCH_TYPE:
+                    model = self.assemble_model_data(self.demucs_model_var.get(), DEMUCS_ARCH_TYPE)
 
             self.cached_source_model_list_check(model)
             
@@ -6630,13 +6945,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     write_to_console = lambda progress_text, base_text=base_text:self.command_Text.write(base_text + progress_text)
 
                     audio_file_base = f"{file_num}_{os.path.splitext(os.path.basename(audio_file))[0]}"
-                    audio_file_base = audio_file_base if not self.is_testing_audio_var.get() or is_ensemble else f"{round(time.time())}_{audio_file_base}"
+                    audio_file_base = audio_file_base if not (task.is_testing_audio if task else self.is_testing_audio_var.get()) or is_ensemble else f"{round(time.time())}_{audio_file_base}"
                     audio_file_base = audio_file_base if not is_ensemble else f"{audio_file_base}_{current_model.model_basename}"
                     if not is_ensemble:
-                        audio_file_base = audio_file_base if not self.is_add_model_name_var.get() else f"{audio_file_base}_{current_model.model_basename}"
+                        audio_file_base = audio_file_base if not (task.is_add_model_name if task else self.is_add_model_name_var.get()) else f"{audio_file_base}_{current_model.model_basename}"
 
-                    if self.is_create_model_folder_var.get() and not is_ensemble:
-                        export_path = os.path.join(Path(self.export_path_var.get()), current_model.model_basename, os.path.splitext(os.path.basename(audio_file))[0])
+                    if (task.is_create_model_folder if task else self.is_create_model_folder_var.get()) and not is_ensemble:
+                        export_path = os.path.join(Path(task.export_path if task else self.export_path_var.get()), current_model.model_basename, os.path.splitext(os.path.basename(audio_file))[0])
                         if not os.path.isdir(export_path):os.makedirs(export_path) 
 
                     process_data = {
@@ -6651,7 +6966,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                     'cached_model_source_holder': self.cached_model_source_holder,
                                     'list_all_models': self.all_models,
                                     'is_ensemble_master': is_ensemble,
-                                    'is_4_stem_ensemble': True if self.ensemble_main_stem_var.get() in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE] and is_ensemble else False}
+                                    'is_4_stem_ensemble': True if (task.ensemble_main_stem if task else self.ensemble_main_stem_var.get()) in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE] and is_ensemble else False}
                     
                     if current_model.process_method == VR_ARCH_TYPE:
                         seperator = SeperateVR(current_model, process_data)
@@ -6670,14 +6985,14 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     audio_file_base = audio_file_base.replace(f"_{current_model.model_basename}","")
                     self.command_Text.write(base_text + ENSEMBLING_OUTPUTS)
                     
-                    if self.ensemble_main_stem_var.get() in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE]:
+                    if (task.ensemble_main_stem if task else self.ensemble_main_stem_var.get()) in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE]:
                         stem_list = extract_stems(audio_file_base, export_path)
                         for output_stem in stem_list:
                             ensemble.ensemble_outputs(audio_file_base, export_path, output_stem, is_4_stem=True)
                     else:
-                        if not self.is_secondary_stem_only_var.get():
+                        if not (task.is_secondary_stem_only if task else self.is_secondary_stem_only_var.get()):
                             ensemble.ensemble_outputs(audio_file_base, export_path, PRIMARY_STEM)
-                        if not self.is_primary_stem_only_var.get():
+                        if not (task.is_primary_stem_only if task else self.is_primary_stem_only_var.get()):
                             ensemble.ensemble_outputs(audio_file_base, export_path, SECONDARY_STEM)
                             ensemble.ensemble_outputs(audio_file_base, export_path, SECONDARY_STEM, is_inst_mix=True)
 
@@ -6694,21 +7009,26 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             if inputPath_total_len == 1 and not is_verified_audio:
                 self.command_Text.write(f'{error_text_console}\n{PROCESS_FAILED}')
                 self.command_Text.write(time_elapsed())
-                playsound(FAIL_CHIME) if self.is_task_complete_var.get() else None
+                playsound(FAIL_CHIME) if (task.is_task_complete if task else self.is_task_complete_var.get()) else None
             else:
                 set_progress_bar(1.0)
                 self.command_Text.write(PROCESS_COMPLETE)
                 self.command_Text.write(time_elapsed())
-                playsound(COMPLETE_CHIME) if self.is_task_complete_var.get() else None
+                playsound(COMPLETE_CHIME) if (task.is_task_complete if task else self.is_task_complete_var.get()) else None
                 
-            self.process_end()
+            if not task:
+                self.process_end()
                         
         except Exception as e:
-            self.error_log_var.set("{}{}".format(error_text(self.chosen_process_method_var.get(), e), self.get_settings_list()))
+            self.error_log_var.set("{}{}".format(error_text(task.process_method if task else self.chosen_process_method_var.get(), e), self.get_settings_list()))
             self.command_Text.write(f'\n\n{PROCESS_FAILED}')
             self.command_Text.write(time_elapsed())
-            playsound(FAIL_CHIME) if self.is_task_complete_var.get() else None
-            self.process_end(error=e)
+            playsound(FAIL_CHIME) if (task.is_task_complete if task else self.is_task_complete_var.get()) else None
+            if not task:
+                self.process_end(error=e)
+            else:
+                task.status = TASK_STATUS_FAILED
+                raise e
 
     #--Varible Methods--
 
@@ -6861,6 +7181,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.is_accept_any_input_var = tk.BooleanVar(value=data['is_accept_any_input'])
         self.is_task_complete_var = tk.BooleanVar(value=data['is_task_complete'])
         self.is_normalization_var = tk.BooleanVar(value=data['is_normalization'])#
+        self.is_replaygain_var = tk.BooleanVar(value=data.get('is_replaygain', False))
         self.is_use_opencl_var = tk.BooleanVar(value=False)#True if is_opencl_only else data['is_use_opencl'])#
         self.is_wav_ensemble_var = tk.BooleanVar(value=data['is_wav_ensemble'])#
         self.is_create_model_folder_var = tk.BooleanVar(value=data['is_create_model_folder'])
@@ -7011,6 +7332,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             
         self.is_gpu_conversion_var.set(loaded_setting['is_gpu_conversion'])
         self.is_normalization_var.set(loaded_setting['is_normalization'])#
+        self.is_replaygain_var.set(loaded_setting.get('is_replaygain', False))
         self.is_use_opencl_var.set(False)#True if is_opencl_only else loaded_setting['is_use_opencl'])#
         self.is_wav_ensemble_var.set(loaded_setting['is_wav_ensemble'])#
         self.help_hints_var.set(loaded_setting['help_hints_var'])
@@ -7122,6 +7444,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'is_accept_any_input': self.is_accept_any_input_var.get(),
             'is_task_complete': self.is_task_complete_var.get(),
             'is_normalization': self.is_normalization_var.get(),#
+            'is_replaygain': self.is_replaygain_var.get(),
             'is_use_opencl': self.is_use_opencl_var.get(),#
             'is_wav_ensemble': self.is_wav_ensemble_var.get(),#
             'is_create_model_folder': self.is_create_model_folder_var.get(),

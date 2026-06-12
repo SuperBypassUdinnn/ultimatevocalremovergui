@@ -121,6 +121,7 @@ class SeperateAttributes:
         self.save_format = model_data.save_format
         self.is_gpu_conversion = model_data.is_gpu_conversion
         self.is_normalization = model_data.is_normalization
+        self.is_replaygain = getattr(model_data, 'is_replaygain', False)
         self.is_primary_stem_only = model_data.is_primary_stem_only if not self.is_secondary_model else model_data.is_primary_model_primary_stem_only
         self.is_secondary_stem_only = model_data.is_secondary_stem_only if not self.is_secondary_model else model_data.is_primary_model_secondary_stem_only      
         self.is_ensemble_mode = model_data.is_ensemble_mode
@@ -390,7 +391,7 @@ class SeperateAttributes:
             sf.write(path, source, samplerate, subtype=self.wav_type_set)
 
             if is_not_ensemble:
-                save_format(path, self.save_format, self.mp3_bit_set)
+                save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain)
 
         def save_voc_split_instrumental(stem_name, stem_source, is_inst_invert=False):
             inst_stem_name = "Instrumental (With Lead Vocals)" if stem_name == LEAD_VOCAL_STEM else "Instrumental (With Backing Vocals)"
@@ -1307,7 +1308,21 @@ def rerun_mp3(audio_file, sample_rate=44100):
 
     return librosa.load(audio_file, duration=track_length, mono=False, sr=sample_rate)[0]
 
-def save_format(audio_path, save_format, mp3_bit_set):
+def apply_replaygain(file_path):
+    import subprocess
+    import shutil
+    if shutil.which('loudgain'):
+        try:
+            print(f"Applying ReplayGain to: {file_path}")
+            res = subprocess.run(['loudgain', '-a', '-k', '-s', 'e', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode != 0:
+                print(f"loudgain failed: {res.stderr}")
+        except Exception as e:
+            print(f"Failed to apply ReplayGain: {e}")
+    else:
+        print("Warning: 'loudgain' command-line tool not found. ReplayGain tagging skipped.")
+
+def save_format(audio_path, save_format, mp3_bit_set, is_replaygain=False):
     
     if not save_format == WAV:
         
@@ -1320,6 +1335,8 @@ def save_format(audio_path, save_format, mp3_bit_set):
         if save_format == FLAC:
             audio_path_flac = audio_path.replace(".wav", ".flac")
             musfile.export(audio_path_flac, format="flac")  
+            if is_replaygain:
+                apply_replaygain(audio_path_flac)
         
         if save_format == MP3:
             audio_path_mp3 = audio_path.replace(".wav", ".mp3")
@@ -1328,11 +1345,16 @@ def save_format(audio_path, save_format, mp3_bit_set):
             except Exception as e:
                 print(e)
                 musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set)
+            if is_replaygain:
+                apply_replaygain(audio_path_mp3)
         
         try:
             os.remove(audio_path)
         except Exception as e:
             print(e)
+    else:
+        if is_replaygain:
+            apply_replaygain(audio_path)
             
 def pitch_shift(mix):
     new_sr = 31183

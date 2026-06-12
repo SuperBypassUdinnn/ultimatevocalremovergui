@@ -645,6 +645,7 @@ DEFAULT_DATA = {
         'is_accept_any_input': False,
         'is_task_complete': False,
         'is_normalization': False,
+        'is_replaygain': False,
         'is_use_opencl': False,
         'is_wav_ensemble': False,
         'is_create_model_folder': False,
@@ -767,6 +768,7 @@ SETTING_CHECK = ('vr_model',
                'user_code',
                'is_gpu_conversion',
                'is_normalization',
+               'is_replaygain',
                'is_use_opencl',
                'is_wav_ensemble',
                'help_hints_var',
@@ -1027,6 +1029,7 @@ else:
 IS_TIME_CORRECTION_HELP = ('When checked, the output will retain the original BPM of the input.')
 SAVE_STEM_ONLY_HELP = 'Allows the user to save only the selected stem.'
 IS_NORMALIZATION_HELP = 'Normalizes output to prevent clipping.'
+IS_REPLAYGAIN_HELP = 'Applies ReplayGain 2.0 tags to the output files using loudgain.'
 IS_CUDA_SELECT_HELP = "If you have more than one GPU, you can pick which one to use for processing."
 CROP_SIZE_HELP = '**Only compatible with select models only!**\n\n Setting should match training crop-size value. Leave as is if unsure.'
 IS_TTA_HELP = ('This option performs Test-Time-Augmentation to improve the separation quality.\n\n'
@@ -1451,6 +1454,16 @@ NAME_SETTINGS_TEXT = 'Name Settings'
 NO_DEFINED_PARAMETERS_FOUND_TEXT = 'No Defined Parameters Found'
 NO_TEXT = 'No'
 NORMALIZE_OUTPUT_TEXT = 'Normalize Output'
+REPLAYGAIN_TEXT = 'Add ReplayGain'
+QUEUE_TAB_TEXT = 'Processing Queue'
+ADD_TO_QUEUE_TEXT = 'Add to Queue'
+QUEUE_EMPTY_TEXT = 'No tasks in queue'
+REMOVE_TASK_TEXT = 'Remove Selected'
+CLEAR_QUEUE_TEXT = 'Clear Queue'
+TASK_STATUS_PENDING = 'Pending'
+TASK_STATUS_RUNNING = 'Processing'
+TASK_STATUS_COMPLETED = 'Completed'
+TASK_STATUS_FAILED = 'Failed'
 USE_OPENCL_TEXT = 'Use OpenCL'
 NOT_ENOUGH_MODELS_TEXT = 'Not Enough Models'
 NOTIFICATION_CHIMES_TEXT = 'Notification Chimes'
