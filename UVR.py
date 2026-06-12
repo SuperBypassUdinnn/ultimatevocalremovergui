@@ -7302,23 +7302,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.time_stretch_rate_var.set(loaded_setting['time_stretch_rate'])
             self.pitch_rate_var.set(loaded_setting['pitch_rate'])#
             self.is_time_correction_var.set(loaded_setting['is_time_correction'])#
-            self.is_primary_stem_only_var.set(loaded_setting['is_primary_stem_only'])
-            self.is_secondary_stem_only_var.set(loaded_setting['is_secondary_stem_only'])
-            self.is_testing_audio_var.set(loaded_setting['is_testing_audio'])#
-            self.is_auto_update_model_params_var.set(loaded_setting['is_auto_update_model_params'])
-            self.is_add_model_name_var.set(loaded_setting['is_add_model_name'])
-            self.is_accept_any_input_var.set(loaded_setting["is_accept_any_input"])
-            self.is_task_complete_var.set(loaded_setting['is_task_complete'])
-            self.is_create_model_folder_var.set(loaded_setting['is_create_model_folder'])
-            self.mp3_bit_set_var.set(loaded_setting['mp3_bit_set'])
-            self.semitone_shift_var.set(loaded_setting['semitone_shift'])#
-            self.save_format_var.set(loaded_setting['save_format'])
-            self.wav_type_set_var.set(loaded_setting['wav_type_set'])#
-            self.device_set_var.set(loaded_setting['device_set'])#
-            self.user_code_var.set(loaded_setting['user_code'])
             self.phase_option_var.set(loaded_setting['phase_option'])#
             self.phase_shifts_var.set(loaded_setting['phase_shifts'])#
-            self.is_save_align_var.set(loaded_setting['is_save_align'])#i
+            self.is_save_align_var.set(loaded_setting['is_save_align'])#
             self.time_window_var.set(loaded_setting['time_window'])#
             self.is_match_silence_var.set(loaded_setting['is_match_silence'])#
             self.is_spec_match_var.set(loaded_setting['is_spec_match'])#
@@ -7329,6 +7315,29 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.fileTwoEntry_var.set(loaded_setting['fileTwoEntry'])#
             self.fileTwoEntry_Full_var.set(loaded_setting['fileTwoEntry_Full'])#
             self.DualBatch_inputPaths = []
+
+        # --- Global / shared settings: always applied for any saved config ---
+        self.is_primary_stem_only_var.set(loaded_setting['is_primary_stem_only'])
+        self.is_secondary_stem_only_var.set(loaded_setting['is_secondary_stem_only'])
+        self.is_testing_audio_var.set(loaded_setting['is_testing_audio'])#
+        self.is_auto_update_model_params_var.set(loaded_setting['is_auto_update_model_params'])
+        self.is_add_model_name_var.set(loaded_setting['is_add_model_name'])
+        self.is_accept_any_input_var.set(loaded_setting["is_accept_any_input"])
+        self.is_task_complete_var.set(loaded_setting['is_task_complete'])
+        self.is_create_model_folder_var.set(loaded_setting['is_create_model_folder'])
+        self.mp3_bit_set_var.set(loaded_setting['mp3_bit_set'])
+        self.semitone_shift_var.set(loaded_setting['semitone_shift'])#
+        self.save_format_var.set(loaded_setting['save_format'])
+        self.wav_type_set_var.set(loaded_setting['wav_type_set'])#
+        self.device_set_var.set(loaded_setting['device_set'])#
+        self.user_code_var.set(loaded_setting['user_code'])
+        self.chosen_audio_tool_var.set(loaded_setting.get('chosen_audio_tool', DEFAULT_DATA.get('chosen_audio_tool', '')))
+
+        # Switch process method tab to match what was saved
+        saved_process_method = loaded_setting.get('chosen_process_method')
+        if saved_process_method and saved_process_method != process_method:
+            self.chosen_process_method_var.set(saved_process_method)
+            self.selection_action_process_method(saved_process_method)
             
         self.is_gpu_conversion_var.set(loaded_setting['is_gpu_conversion'])
         self.is_normalization_var.set(loaded_setting['is_normalization'])#
