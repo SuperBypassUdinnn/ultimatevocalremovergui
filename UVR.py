@@ -7224,6 +7224,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         saved_process_method = loaded_setting.get('chosen_process_method', process_method)
         effective_method = saved_process_method if saved_process_method else process_method
 
+        # Switch process method FIRST so selection_action_models() dispatches correctly
+        if effective_method and effective_method != process_method:
+            self.chosen_process_method_var.set(effective_method)
+            self.selection_action_process_method(effective_method, is_from_conv_menu=True)
+
         if process_method == VR_ARCH_PM or effective_method == VR_ARCH_PM or is_default_reset:
             self.vr_model_var.set(loaded_setting['vr_model'])
             self.aggression_setting_var.set(loaded_setting['aggression_setting'])
@@ -7245,6 +7250,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.vr_other_secondary_model_scale_var.set(loaded_setting['vr_other_secondary_model_scale'])
             self.vr_bass_secondary_model_scale_var.set(loaded_setting['vr_bass_secondary_model_scale'])
             self.vr_drums_secondary_model_scale_var.set(loaded_setting['vr_drums_secondary_model_scale'])
+            # Trigger UI update so stem labels reflect the loaded VR model
+            self.selection_action_models(loaded_setting['vr_model'])
         
         if process_method == DEMUCS_ARCH_TYPE or effective_method == DEMUCS_ARCH_TYPE or is_default_reset:
             self.demucs_model_var.set(loaded_setting['demucs_model'])
@@ -7275,6 +7282,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.demucs_pre_proc_model_var.set(loaded_setting['demucs_pre_proc_model'])
             self.is_demucs_pre_proc_model_activate_var.set(loaded_setting['is_demucs_pre_proc_model_activate'])
             self.is_demucs_pre_proc_model_inst_mix_var.set(loaded_setting['is_demucs_pre_proc_model_inst_mix'])
+            # Trigger UI update so stem options reflect the loaded Demucs model
+            self.selection_action_models(loaded_setting['demucs_model'])
         
         if process_method == MDX_ARCH_TYPE or effective_method == MDX_ARCH_TYPE or is_default_reset:
             self.mdx_net_model_var.set(loaded_setting['mdx_net_model'])
@@ -7298,6 +7307,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.mdx_other_secondary_model_scale_var.set(loaded_setting['mdx_other_secondary_model_scale'])
             self.mdx_bass_secondary_model_scale_var.set(loaded_setting['mdx_bass_secondary_model_scale'])
             self.mdx_drums_secondary_model_scale_var.set(loaded_setting['mdx_drums_secondary_model_scale'])
+            # Trigger UI update so overlap/segment widget layout reflects the loaded MDX model
+            # (standard MDX uses integer overlap_mdx; MDX-C uses float overlap_mdx23)
+            self.selection_action_models(loaded_setting['mdx_net_model'])
         
         if is_default_reset:
             self.is_save_all_outputs_ensemble_var.set(loaded_setting['is_save_all_outputs_ensemble'])
@@ -7337,11 +7349,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.user_code_var.set(loaded_setting['user_code'])
         self.chosen_audio_tool_var.set(loaded_setting.get('chosen_audio_tool', DEFAULT_DATA.get('chosen_audio_tool', '')))
 
-        # Switch process method tab to match what was saved
-        if effective_method and effective_method != process_method:
-            self.chosen_process_method_var.set(effective_method)
-            self.selection_action_process_method(effective_method, is_from_conv_menu=True)
-            
+        # Process method already switched at the top of this function if needed
+
         self.is_gpu_conversion_var.set(loaded_setting['is_gpu_conversion'])
         self.is_normalization_var.set(loaded_setting['is_normalization'])#
         self.is_replaygain_var.set(loaded_setting.get('is_replaygain', False))
