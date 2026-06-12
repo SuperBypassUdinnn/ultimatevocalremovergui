@@ -345,6 +345,7 @@ class QueueTask:
     def __init__(self, task_id, root):
         self.id = task_id
         self.status = TASK_STATUS_PENDING
+        self.is_paused = False
         
         # Determine process method and freeze UI variables
         self.process_method = root.chosen_process_method_var.get()
@@ -1365,6 +1366,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     CONVERSIONBUTTON_HEIGHT = CONVERSIONBUTTON_HEIGHT
     COMMAND_HEIGHT = COMMAND_HEIGHT
     PROGRESS_HEIGHT = PROGRESS_HEIGHT
+    QUEUE_HEIGHT = QUEUE_HEIGHT
     PADDING = PADDING
     WIDTH = WIDTH
     COL1_ROWS = 11
@@ -1383,7 +1385,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         # Calculate window height
         height = self.IMAGE_HEIGHT + self.FILEPATHS_HEIGHT + self.OPTIONS_HEIGHT
-        height += self.CONVERSIONBUTTON_HEIGHT + self.COMMAND_HEIGHT + self.PROGRESS_HEIGHT
+        height += self.CONVERSIONBUTTON_HEIGHT + self.COMMAND_HEIGHT + self.PROGRESS_HEIGHT + self.QUEUE_HEIGHT
         height += self.PADDING * 5  # Padding
         width = self.WIDTH
         self.main_window_width = width
@@ -1419,6 +1421,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.donate_img = img.donate_img
         self.key_img = img.key_img
         self.credits_img = img.credits_img
+        self.play_img = img.play_img
+        self.pause_img = img.pause_img
+        self.up_img = img.up_img
+        self.down_img = img.down_img
         
         self.right_img = img.right_img
         self.left_img = img.left_img
@@ -1758,10 +1764,57 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.progressbar.place(x=X_PROGRESSBAR_1080P, y=Y_OFFSET_PROGRESS_BAR_1080P, width=WIDTH_PROGRESSBAR_1080P, height=HEIGHT_PROGRESSBAR_1080P,
                             relx=0, rely=0, relwidth=1, relheight=0)
 
+        # Separator to separate process progress and start button
+        self.separator = ttk.Separator(master=self, orient='horizontal')
+        self.separator.place(x=15, y=Y_OFFSET_SEPARATOR_1080P, width=-30, height=2, relx=0, rely=0, relwidth=1, relheight=0)
+
+        # Processing Queue on Main window
+        self.queue_frame = ttk.Frame(master=self)
+        self.queue_frame.place(x=15, y=Y_OFFSET_QUEUE_1080P, width=-30, height=self.QUEUE_HEIGHT, relx=0, rely=0, relwidth=1, relheight=0)
+
+        scrollbar = ttk.Scrollbar(self.queue_frame, orient="vertical")
+        
+        self.queue_treeview = ttk.Treeview(self.queue_frame, columns=('id', 'inputs', 'method', 'status'), show='headings', yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.queue_treeview.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.queue_treeview.pack(side="top", fill="both", expand=True)
+        
+        self.queue_treeview.heading('id', text='ID')
+        self.queue_treeview.heading('inputs', text='Input Files')
+        self.queue_treeview.heading('method', text='Model / Method')
+        self.queue_treeview.heading('status', text='Status')
+        
+        self.queue_treeview.column('id', width=50, anchor='center')
+        self.queue_treeview.column('inputs', width=260, anchor='w')
+        self.queue_treeview.column('method', width=160, anchor='w')
+        self.queue_treeview.column('status', width=100, anchor='center')
+        
+        queue_buttons_frame = ttk.Frame(self.queue_frame)
+        queue_buttons_frame.pack(side="bottom", fill="x", pady=5)
+        
+        self.remove_task_button = ttk.Button(queue_buttons_frame, text=REMOVE_TASK_TEXT, command=self.remove_selected_task, width=15)
+        self.remove_task_button.pack(side="left", padx=5)
+        
+        self.pause_resume_task_button = ttk.Button(queue_buttons_frame, image=self.pause_img, command=self.pause_resume_selected_task)
+        self.pause_resume_task_button.pack(side="left", padx=5)
+        
+        self.move_up_task_button = ttk.Button(queue_buttons_frame, image=self.up_img, command=self.move_task_up)
+        self.move_up_task_button.pack(side="left", padx=5)
+        
+        self.move_down_task_button = ttk.Button(queue_buttons_frame, image=self.down_img, command=self.move_task_down)
+        self.move_down_task_button.pack(side="left", padx=5)
+        
+        self.clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=15)
+        self.clear_queue_button.pack(side="right", padx=5)
+        
+        self.queue_treeview.bind('<<TreeviewSelect>>', self.queue_selection_changed)
+        
+        self.update_queue_ui_display()
+
          # Select Music Files Option
-        self.console_Frame = tk.Frame(master=self, highlightbackground='#101012', highlightcolor='#101012', highlightthicknes=2)
-        self.console_Frame.place(x=15, y=self.IMAGE_HEIGHT + self.FILEPATHS_HEIGHT + self.OPTIONS_HEIGHT + self.CONVERSIONBUTTON_HEIGHT + self.PADDING + 5 *3, width=-30, height=self.COMMAND_HEIGHT+7,
-                                relx=0, rely=0, relwidth=1, relheight=0)
+        self.console_Frame = ttk.Frame(master=self)
+        self.console_Frame.place(x=15, y=Y_OFFSET_CONSOLE_FRAME_1080P, width=-30, height=self.COMMAND_HEIGHT+7,
+                                 relx=0, rely=0, relwidth=1, relheight=0)
 
 
         self.command_Text = ThreadSafeConsole(master=self.console_Frame, background='#0c0c0d',fg='#898b8e', highlightcolor="#0c0c0d",  font=(MAIN_FONT_NAME, FONT_SIZE_4), borderwidth=0)
@@ -2969,22 +3022,19 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             audio_input_total()
             
         def selected_files(is_remove=False):
-            if not self.thread_check(self.active_processing_thread):
-                items_list = [input_files_listbox_Option.get(i) for i in input_files_listbox_Option.curselection()]
-                inputPaths = list(self.inputPaths)# if is_remove else items_list
-                if is_remove:
-                    [inputPaths.remove(i) for i in items_list if items_list]
-                else:
-                    [inputPaths.remove(i) for i in self.inputPaths if i not in items_list]
-                removed_files = list_diff(self.inputPaths, inputPaths)
-                [input_files_listbox_Option.delete(input_files_listbox_Option.get(0, tk.END).index(i)) for i in removed_files]
-                starting_len = len(self.inputPaths)
-                self.inputPaths = tuple(inputPaths)
-                self.update_inputPaths()
-                audio_input_total()
-                input_info_text_var.set(f'{starting_len - len(self.inputPaths)} input(s) removed.')
+            items_list = [input_files_listbox_Option.get(i) for i in input_files_listbox_Option.curselection()]
+            inputPaths = list(self.inputPaths)# if is_remove else items_list
+            if is_remove:
+                [inputPaths.remove(i) for i in items_list if items_list]
             else:
-                input_info_text_var.set('You cannot remove inputs during an active process.')
+                [inputPaths.remove(i) for i in self.inputPaths if i not in items_list]
+            removed_files = list_diff(self.inputPaths, inputPaths)
+            [input_files_listbox_Option.delete(input_files_listbox_Option.get(0, tk.END).index(i)) for i in removed_files]
+            starting_len = len(self.inputPaths)
+            self.inputPaths = tuple(inputPaths)
+            self.update_inputPaths()
+            audio_input_total()
+            input_info_text_var.set(f'{starting_len - len(self.inputPaths)} input(s) removed.')
             
         def box_size():
             input_info_text_var.set('')
@@ -3321,12 +3371,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         tab1 = ttk.Frame(tabControl)
         tab2 = ttk.Frame(tabControl)
         tab3 = ttk.Frame(tabControl)
-        tab4 = ttk.Frame(tabControl)
 
         tabControl.add(tab1, text = SETTINGS_GUIDE_TEXT)
         tabControl.add(tab2, text = ADDITIONAL_SETTINGS_TEXT)
         tabControl.add(tab3, text = DOWNLOAD_CENTER_TEXT)
-        tabControl.add(tab4, text = QUEUE_TAB_TEXT)
 
         tabControl.pack(expand = 1, fill ="both")
         
@@ -3338,9 +3386,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         tab3.grid_rowconfigure(0, weight=1)
         tab3.grid_columnconfigure(0, weight=1)
-
-        tab4.grid_rowconfigure(0, weight=1)
-        tab4.grid_columnconfigure(0, weight=1)
 
         self.disable_tabs = lambda:(tabControl.tab(0, state="disabled"), tabControl.tab(1, state="disabled"))
         self.enable_tabs = lambda:(tabControl.tab(0, state="normal"), tabControl.tab(1, state="normal"))        
@@ -3557,43 +3602,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                    self.model_download_mdx_var,
                                    self.model_download_demucs_var)
         
-        # Settings Tab 4 - Processing Queue
-        settings_menu_queue_Frame = self.menu_FRAME_SET(tab4)
-        settings_menu_queue_Frame.grid(row=0)
-        
-        queue_title_Label = self.menu_title_LABEL_SET(settings_menu_queue_Frame, QUEUE_TAB_TEXT)
-        queue_title_Label.grid(pady=MENU_PADDING_2)
-        
-        tree_frame = ttk.Frame(settings_menu_queue_Frame)
-        tree_frame.grid(padx=20, pady=MENU_PADDING_1)
-        
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
-        
-        self.queue_treeview = ttk.Treeview(tree_frame, columns=('id', 'inputs', 'method', 'status'), show='headings', height=10, yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.queue_treeview.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.queue_treeview.pack(side="left", fill="both", expand=True)
-        
-        self.queue_treeview.heading('id', text='ID')
-        self.queue_treeview.heading('inputs', text='Input Files')
-        self.queue_treeview.heading('method', text='Model / Method')
-        self.queue_treeview.heading('status', text='Status')
-        
-        self.queue_treeview.column('id', width=50, anchor='center')
-        self.queue_treeview.column('inputs', width=260, anchor='w')
-        self.queue_treeview.column('method', width=160, anchor='w')
-        self.queue_treeview.column('status', width=100, anchor='center')
-        
-        queue_buttons_frame = ttk.Frame(settings_menu_queue_Frame)
-        queue_buttons_frame.grid(pady=MENU_PADDING_2)
-        
-        remove_task_button = ttk.Button(queue_buttons_frame, text=REMOVE_TASK_TEXT, command=self.remove_selected_task, width=18)
-        remove_task_button.grid(row=0, column=0, padx=10)
-        
-        clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=18)
-        clear_queue_button.grid(row=0, column=1, padx=10)
-        
-        self.update_queue_ui_display()
+        # Queue moved to main UI
 
         self.online_data_refresh()
 
@@ -6094,6 +6103,14 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def selection_action_models_sub(self, selection, ai_type, var: tk.StringVar):
         """Takes input directly from the selection_action_models parent function"""
 
+        if ai_type == MDX_ARCH_TYPE:
+            self.overlap_mdx_Option.place(x=-1000, y=-1000)
+            self.overlap_mdx23_Option.place(x=-1000, y=-1000)
+            self.mdxnet_stems_Option.place(x=-1000, y=-1000)
+            self.mdxnet_stems_Label.place(x=-1000, y=-1000)
+            self.mdx_segment_size_Option.place(x=-1000, y=-1000)
+            self.mdx_segment_size_Label.place(x=-1000, y=-1000)
+
         if selection == DOWNLOAD_MORE:
             is_model_status = False
         else:
@@ -6240,10 +6257,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
     def selection_action_saved_settings(self, selection, process_method=None):
         """Activates specific action based on the selected settings from the saved settings selections"""
-
-        if self.thread_check(self.active_processing_thread):
-            self.error_dialoge(SET_TO_ANY_PROCESS_ERROR)
-            return
 
         chosen_process_method = self.chosen_process_method_var.get() 
         if process_method:
@@ -6405,7 +6418,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             # Find the first pending task
             task = None
             for t in self.processing_queue:
-                if t.status == TASK_STATUS_PENDING:
+                if t.status == TASK_STATUS_PENDING and not t.is_paused:
                     task = t
                     break
             if not task:
@@ -6417,6 +6430,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             
             # Reset is_process_stopped flag before starting
             self.is_process_stopped = False
+            # Keep button enabled so user can still enqueue while processing
+            self.after(0, self.process_button_queue_mode)
             
             # Prepare target function
             if task.process_method == AUDIO_TOOLS:
@@ -6500,8 +6515,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             # Clear existing items
             for item in self.queue_treeview.get_children():
                 self.queue_treeview.delete(item)
-            # Populate with all tasks
-            for task in self.processing_queue:
+            # Populate with all tasks (new-old order, newest at top)
+            for task in reversed(self.processing_queue):
                 inputs_str = ", ".join(os.path.basename(p) for p in task.input_paths)
                 if len(task.input_paths) > 2:
                     inputs_str = f"{len(task.input_paths)} files: " + ", ".join(os.path.basename(p) for p in task.input_paths[:2]) + "..."
@@ -6519,13 +6534,121 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         else:
                             method_str = task.process_method
                             
-                self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, task.status))
+                status_str = task.status
+                if task.is_paused and task.status == TASK_STATUS_PENDING:
+                    status_str = TASK_STATUS_PAUSED
+                self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, status_str))
+
+    def pause_resume_selected_task(self):
+        if not hasattr(self, 'queue_treeview') or not self.queue_treeview:
+            return
+        selected = self.queue_treeview.selection()
+        if not selected:
+            return
+        item = self.queue_treeview.item(selected[0])
+        task_id = item['values'][0]
+        
+        for task in self.processing_queue:
+            if task.id == task_id:
+                if task.status == TASK_STATUS_PENDING:
+                    task.is_paused = not task.is_paused
+                    self.update_queue_ui_display()
+                    self.queue_selection_changed()
+                    
+                    if not task.is_paused and not self.is_queue_worker_running:
+                        self.queue_worker_thread = KThread(target=self.queue_worker_loop)
+                        self.queue_worker_thread.start()
+                break
+
+    def move_task_up(self):
+        self.move_task_direction(1)
+
+    def move_task_down(self):
+        self.move_task_direction(-1)
+
+    def move_task_direction(self, direction):
+        if not hasattr(self, 'queue_treeview') or not self.queue_treeview:
+            return
+        selected = self.queue_treeview.selection()
+        if not selected:
+            return
+        item = self.queue_treeview.item(selected[0])
+        task_id = item['values'][0]
+        
+        idx = -1
+        for i, task in enumerate(self.processing_queue):
+            if task.id == task_id:
+                idx = i
+                break
+                
+        if idx == -1:
+            return
+            
+        task = self.processing_queue[idx]
+        
+        if task.status == TASK_STATUS_RUNNING:
+            return
+            
+        new_idx = idx + direction
+        
+        if new_idx < 0 or new_idx >= len(self.processing_queue):
+            return
+            
+        if self.processing_queue[new_idx].status == TASK_STATUS_RUNNING:
+            return
+            
+        self.processing_queue[idx], self.processing_queue[new_idx] = self.processing_queue[new_idx], self.processing_queue[idx]
+        
+        self.update_queue_ui_display()
+        
+        for child in self.queue_treeview.get_children():
+            if self.queue_treeview.item(child)['values'][0] == task_id:
+                self.queue_treeview.selection_set(child)
+                self.queue_treeview.focus(child)
+                break
+
+    def queue_selection_changed(self, event=None):
+        if not hasattr(self, 'queue_treeview') or not self.queue_treeview:
+            return
+        selected = self.queue_treeview.selection()
+        if not selected:
+            if hasattr(self, 'pause_resume_task_button'):
+                self.pause_resume_task_button.config(state=tk.DISABLED)
+                self.move_up_task_button.config(state=tk.DISABLED)
+                self.move_down_task_button.config(state=tk.DISABLED)
+            return
+            
+        item = self.queue_treeview.item(selected[0])
+        task_id = item['values'][0]
+        
+        task_status = None
+        for task in self.processing_queue:
+            if task.id == task_id:
+                task_status = task.status
+                break
+                
+        if task_status in [TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED]:
+            self.pause_resume_task_button.config(state=tk.DISABLED)
+            self.move_up_task_button.config(state=tk.DISABLED)
+            self.move_down_task_button.config(state=tk.DISABLED)
+        else:
+            self.pause_resume_task_button.config(state=tk.NORMAL)
+            self.move_up_task_button.config(state=tk.NORMAL)
+            self.move_down_task_button.config(state=tk.NORMAL)
 
     def process_button_init(self):
         self.auto_save()
         self.conversion_Button_Text_var.set(WAIT_PROCESSING)
         self.conversion_Button.configure(state=tk.DISABLED)
         self.command_Text.clear()
+
+    def process_button_queue_mode(self):
+        """Keep button enabled so user can keep adding tasks to the queue."""
+        self.auto_save()
+        self.command_Text.clear()
+        # Button stays NORMAL — user can click it again to enqueue more tasks
+        self.conversion_Button_Text_var.set(START_PROCESSING)
+        self.conversion_Button.configure(state=tk.NORMAL)
 
     def process_get_baseText(self, total_files, file_num, is_dual=False):
         """Create the base text for the command widget"""
@@ -7034,9 +7157,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
     def load_to_default_confirm(self):
         """Reset settings confirmation after asking for confirmation"""
-        if self.thread_check(self.active_processing_thread):
-            self.error_dialogue(SET_TO_DEFAULT_PROCESS_ERROR)
-            return
         
         confirm = messagebox.askyesno(
             parent=root, 
@@ -7224,10 +7344,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         saved_process_method = loaded_setting.get('chosen_process_method', process_method)
         effective_method = saved_process_method if saved_process_method else process_method
 
-        # Switch process method FIRST so selection_action_models() dispatches correctly
+        # Always update UI widget positions — ensures old widgets (e.g. overlap_mdx23_Option)
+        # are moved off-screen before the new model's widgets are placed, preventing z-order
+        # issues where both widgets overlap at the same position.
         if effective_method and effective_method != process_method:
             self.chosen_process_method_var.set(effective_method)
-            self.selection_action_process_method(effective_method, is_from_conv_menu=True)
+        self.selection_action_process_method(effective_method or process_method, is_from_conv_menu=True)
 
         if process_method == VR_ARCH_PM or effective_method == VR_ARCH_PM or is_default_reset:
             self.vr_model_var.set(loaded_setting['vr_model'])
