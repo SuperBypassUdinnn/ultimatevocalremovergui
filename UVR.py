@@ -1807,6 +1807,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=15)
         self.clear_queue_button.pack(side="right", padx=5)
         
+        self.chime_toggle_button = ttk.Button(queue_buttons_frame, text=CHIME_ON_TEXT if self.is_task_complete_var.get() else CHIME_OFF_TEXT, command=self.toggle_chime, width=12)
+        self.chime_toggle_button.pack(side="right", padx=5)
+        
+        self.is_task_complete_var.trace_add('write', self.update_chime_button_text)
+        
+        
         self.queue_treeview.bind('<<TreeviewSelect>>', self.queue_selection_changed)
         
         self.update_queue_ui_display()
@@ -6635,6 +6641,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.pause_resume_task_button.config(state=tk.NORMAL)
             self.move_up_task_button.config(state=tk.NORMAL)
             self.move_down_task_button.config(state=tk.NORMAL)
+
+    def toggle_chime(self):
+        self.is_task_complete_var.set(not self.is_task_complete_var.get())
+        
+    def update_chime_button_text(self, *args):
+        if hasattr(self, 'chime_toggle_button'):
+            self.chime_toggle_button.config(text=CHIME_ON_TEXT if self.is_task_complete_var.get() else CHIME_OFF_TEXT)
 
     def process_button_init(self):
         self.auto_save()
