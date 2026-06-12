@@ -1385,7 +1385,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         # Calculate window height
         height = self.IMAGE_HEIGHT + self.FILEPATHS_HEIGHT + self.OPTIONS_HEIGHT
-        height += self.CONVERSIONBUTTON_HEIGHT + self.COMMAND_HEIGHT + self.PROGRESS_HEIGHT + self.QUEUE_HEIGHT
+        height += self.CONVERSIONBUTTON_HEIGHT + self.COMMAND_HEIGHT + self.PROGRESS_HEIGHT + self.QUEUE_HEIGHT + 27
         height += self.PADDING * 5  # Padding
         width = self.WIDTH
         self.main_window_width = width
@@ -1750,10 +1750,18 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.conversion_Button_enable = lambda:(self.conversion_Button_Text_var.set(START_PROCESSING), self.conversion_Button.configure(state=tk.NORMAL))
         self.conversion_Button_disable = lambda message:(self.conversion_Button_Text_var.set(message), self.conversion_Button.configure(state=tk.DISABLED))
         
-        self.stop_Button = ttk.Button(master=self, image=self.stop_img, command=self.confirm_stop_process)
+        self.stop_Button = ttk.Button(master=self, image=self.stop_img, command=lambda: self.confirm_stop_process(stop_all=False))
         self.stop_Button.place(x=X_STOP_BUTTON_1080P, y=BUTTON_Y_1080P, width=HEIGHT_GENERIC_BUTTON_1080P, height=HEIGHT_GENERIC_BUTTON_1080P,
                             relx=1, rely=0, relwidth=0, relheight=0)
         self.help_hints(self.stop_Button, text=STOP_HELP)
+        
+        self.stop_expand_Button = ttk.Button(master=self, image=self.down_img, command=self.show_stop_menu)
+        self.stop_expand_Button.place(x=X_STOP_MENU_BUTTON_1080P, y=BUTTON_Y_1080P, width=20, height=HEIGHT_GENERIC_BUTTON_1080P,
+                            relx=1, rely=0, relwidth=0, relheight=0)
+        
+        self.stop_menu = tk.Menu(self, tearoff=0)
+        self.stop_menu.add_command(label="Stop Active Queue", command=lambda: self.confirm_stop_process(stop_all=False))
+        self.stop_menu.add_command(label="Stop All Queue", command=lambda: self.confirm_stop_process(stop_all=True))
         
         self.settings_Button = ttk.Button(master=self, image=self.help_img, command=self.check_is_menu_settings_open)
         self.settings_Button.place(x=X_SETTINGS_BUTTON_1080P, y=BUTTON_Y_1080P, width=HEIGHT_GENERIC_BUTTON_1080P, height=HEIGHT_GENERIC_BUTTON_1080P,
@@ -1764,6 +1772,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.progressbar.place(x=X_PROGRESSBAR_1080P, y=Y_OFFSET_PROGRESS_BAR_1080P, width=WIDTH_PROGRESSBAR_1080P, height=HEIGHT_PROGRESSBAR_1080P,
                             relx=0, rely=0, relwidth=1, relheight=0)
 
+        self.progress_text_var = tk.StringVar(value="")
+        self.progress_text_Label = tk.Label(master=self, textvariable=self.progress_text_var, font=(MAIN_FONT_NAME, FONT_SIZE_F1, "bold"), fg="#11cf7b", bg="#101014")
+        self.progress_text_Label.place(x=X_PROGRESSBAR_1080P, y=Y_OFFSET_PROGRESS_TEXT_1080P, width=WIDTH_PROGRESSBAR_1080P, height=25,
+                            relx=0, rely=0, relwidth=1, relheight=0)
+
         # Separator to separate process progress and start button
         self.separator = ttk.Separator(master=self, orient='horizontal')
         self.separator.place(x=15, y=Y_OFFSET_SEPARATOR_1080P, width=-30, height=2, relx=0, rely=0, relwidth=1, relheight=0)
@@ -1772,9 +1785,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.queue_frame = ttk.Frame(master=self)
         self.queue_frame.place(x=15, y=Y_OFFSET_QUEUE_1080P, width=-30, height=self.QUEUE_HEIGHT, relx=0, rely=0, relwidth=1, relheight=0)
 
+        queue_buttons_frame = ttk.Frame(self.queue_frame)
+        queue_buttons_frame.pack(side="bottom", fill="x", pady=5)
+        
         scrollbar = ttk.Scrollbar(self.queue_frame, orient="vertical")
         
-        self.queue_treeview = ttk.Treeview(self.queue_frame, columns=('id', 'inputs', 'method', 'status'), show='headings', yscrollcommand=scrollbar.set)
+        self.queue_treeview = ttk.Treeview(self.queue_frame, columns=('id', 'inputs', 'method', 'status'), show='headings', yscrollcommand=scrollbar.set, height=4)
         scrollbar.config(command=self.queue_treeview.yview)
         scrollbar.pack(side="right", fill="y")
         self.queue_treeview.pack(side="top", fill="both", expand=True)
@@ -1789,8 +1805,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.queue_treeview.column('method', width=160, anchor='w')
         self.queue_treeview.column('status', width=100, anchor='center')
         
-        queue_buttons_frame = ttk.Frame(self.queue_frame)
-        queue_buttons_frame.pack(side="bottom", fill="x", pady=5)
+
         
         self.remove_task_button = ttk.Button(queue_buttons_frame, text=REMOVE_TASK_TEXT, command=self.remove_selected_task, width=15)
         self.remove_task_button.pack(side="left", padx=5)
@@ -6653,6 +6668,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.auto_save()
         self.conversion_Button_Text_var.set(WAIT_PROCESSING)
         self.conversion_Button.configure(state=tk.DISABLED)
+        self.progress_text_var.set("")
         self.command_Text.clear()
 
     def process_button_queue_mode(self):
@@ -6661,6 +6677,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.command_Text.clear()
         # Button stays NORMAL — user can click it again to enqueue more tasks
         self.conversion_Button_Text_var.set(START_PROCESSING)
+        self.progress_text_var.set("")
         self.conversion_Button.configure(state=tk.NORMAL)
 
     def process_get_baseText(self, total_files, file_num, is_dual=False):
@@ -6681,12 +6698,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         base = (100 / total_count)
         progress = base * self.iteration - base
         progress += base * step
-
         self.progress_bar_main_var.set(progress)
-        
-        self.conversion_Button_Text_var.set(f'Process Progress: {int(progress)}%')
+        self.progress_text_var.set(f'Process Progress: {int(progress)}%')
 
-    def confirm_stop_process(self):
+    def show_stop_menu(self):
+        x = self.stop_expand_Button.winfo_rootx()
+        y = self.stop_expand_Button.winfo_rooty() + self.stop_expand_Button.winfo_height()
+        self.stop_menu.post(x, y)
+
+    def confirm_stop_process(self, stop_all=False):
         """Asks for confirmation before halting active process"""
         
         self.auto_save()
@@ -6695,12 +6715,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             confirm = messagebox.askyesno(parent=root, title=STOP_PROCESS_CONFIRM[0], message=STOP_PROCESS_CONFIRM[1])
 
             if confirm:
+                if stop_all:
+                    for task in self.processing_queue:
+                        if task.status == TASK_STATUS_PENDING:
+                            task.status = TASK_STATUS_FAILED
+                    self.update_queue_ui_display()
                 try:
                     self.active_processing_thread.terminate()
                 finally:
                     self.is_process_stopped = True
                     self.command_Text.write(PROCESS_STOPPED_BY_USER)
         else:
+            if stop_all:
+                for task in self.processing_queue:
+                    if task.status == TASK_STATUS_PENDING:
+                        task.status = TASK_STATUS_FAILED
+                self.update_queue_ui_display()
             self.clear_cache_torch = True
 
     def process_end(self, error=None):
