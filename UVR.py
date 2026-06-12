@@ -7219,8 +7219,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 loaded_setting['batch_size'] = DEF_OPT
                 
         is_default_reset = True if process_method == ENSEMBLE_MODE or is_default_reset else False
-        
-        if process_method == VR_ARCH_PM or is_default_reset:
+
+        # Determine the effective process method from the config (may differ from current)
+        saved_process_method = loaded_setting.get('chosen_process_method', process_method)
+        effective_method = saved_process_method if saved_process_method else process_method
+
+        if process_method == VR_ARCH_PM or effective_method == VR_ARCH_PM or is_default_reset:
             self.vr_model_var.set(loaded_setting['vr_model'])
             self.aggression_setting_var.set(loaded_setting['aggression_setting'])
             self.window_size_var.set(loaded_setting['window_size'])
@@ -7242,7 +7246,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.vr_bass_secondary_model_scale_var.set(loaded_setting['vr_bass_secondary_model_scale'])
             self.vr_drums_secondary_model_scale_var.set(loaded_setting['vr_drums_secondary_model_scale'])
         
-        if process_method == DEMUCS_ARCH_TYPE or is_default_reset:
+        if process_method == DEMUCS_ARCH_TYPE or effective_method == DEMUCS_ARCH_TYPE or is_default_reset:
             self.demucs_model_var.set(loaded_setting['demucs_model'])
             self.segment_var.set(loaded_setting['segment'])
             self.overlap_var.set(loaded_setting['overlap'])
@@ -7272,7 +7276,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.is_demucs_pre_proc_model_activate_var.set(loaded_setting['is_demucs_pre_proc_model_activate'])
             self.is_demucs_pre_proc_model_inst_mix_var.set(loaded_setting['is_demucs_pre_proc_model_inst_mix'])
         
-        if process_method == MDX_ARCH_TYPE or is_default_reset:
+        if process_method == MDX_ARCH_TYPE or effective_method == MDX_ARCH_TYPE or is_default_reset:
             self.mdx_net_model_var.set(loaded_setting['mdx_net_model'])
             self.chunks_var.set(loaded_setting['chunks'])
             self.margin_var.set(loaded_setting['margin'])
@@ -7334,10 +7338,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.chosen_audio_tool_var.set(loaded_setting.get('chosen_audio_tool', DEFAULT_DATA.get('chosen_audio_tool', '')))
 
         # Switch process method tab to match what was saved
-        saved_process_method = loaded_setting.get('chosen_process_method')
-        if saved_process_method and saved_process_method != process_method:
-            self.chosen_process_method_var.set(saved_process_method)
-            self.selection_action_process_method(saved_process_method)
+        if effective_method and effective_method != process_method:
+            self.chosen_process_method_var.set(effective_method)
+            self.selection_action_process_method(effective_method, is_from_conv_menu=True)
             
         self.is_gpu_conversion_var.set(loaded_setting['is_gpu_conversion'])
         self.is_normalization_var.set(loaded_setting['is_normalization'])#
