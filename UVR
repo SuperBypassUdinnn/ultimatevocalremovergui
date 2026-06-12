@@ -15,10 +15,22 @@ cd "$SCRIPT_DIR" || exit 1
 # Check if the virtual environment exists
 if [ ! -d ".venv" ]; then
     echo "Error: Virtual environment (.venv) not found in '$SCRIPT_DIR'."
-    echo "If you copied this script to a global bin directory, please create a symlink instead:"
-    echo "  sudo ln -sf $REPO_DIR/run.sh /usr/local/bin/UVR"
-    echo "Or run this script directly from the repository directory."
-    exit 1
+    if [ -t 0 ]; then
+        read -p "Would you like to run install_packages.sh now to set up the environment? [y/N]: " choice
+        case "$choice" in
+            [yY][eE][sS]|[yY])
+                echo "Running install_packages.sh..."
+                ./install_packages.sh || { echo "Installation failed."; exit 1; }
+                ;;
+            *)
+                echo "Exiting. Please set up the environment before running Ultimate Vocal Remover."
+                exit 1
+                ;;
+        esac
+    else
+        echo "Non-interactive terminal. Attempting to run install_packages.sh automatically..."
+        ./install_packages.sh || { echo "Installation failed."; exit 1; }
+    fi
 fi
 
 # Run the application using the python virtual environment interpreter
