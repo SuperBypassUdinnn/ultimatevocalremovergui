@@ -19,13 +19,14 @@ chmod +x "$RUN_SCRIPT"
 # Write the .desktop file
 cat <<EOF > "$DESKTOP_FILE"
 [Desktop Entry]
-Name=Ultimate Vocal Remover
+Name=Ultimate Vocal Remover (UVR)
 Comment=GUI for Ultimate Vocal Remover (UVR)
 Exec="$RUN_SCRIPT"
 Icon=$ICON_PATH
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;AudioVideoEditing;
+Keywords=UVR;vocal;remover;separation;music;
 StartupNotify=true
 EOF
 
