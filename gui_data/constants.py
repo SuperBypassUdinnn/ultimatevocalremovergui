@@ -1022,8 +1022,8 @@ if OPERATING_SYSTEM == 'darwin':
    IS_HALF_PRECISION_HELP = (
       '• Half-Precision (AMP):\n'
       '  - Recommended: Greatly reduces GPU VRAM usage (up to 50%) and may speed up processing.\n'
-      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (GTX 10xx, RTX 20xx and newer).\n'
-      '  - Not Recommended: Older GPUs (e.g., GTX 9xx) may experience slower processing speeds or errors.\n'
+      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (RTX 20xx and newer).\n'
+      '  - Not Recommended: Older GPUs (GTX series) may experience slower processing speeds or errors.\n'
       '  - Audio quality differences are negligible.'
    )
 else:
@@ -1038,8 +1038,8 @@ else:
    IS_HALF_PRECISION_HELP = (
       '• Half-Precision (AMP):\n'
       '  - Recommended: Greatly reduces GPU VRAM usage (up to 50%) and may speed up processing.\n'
-      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (GTX 10xx, RTX 20xx and newer).\n'
-      '  - Not Recommended: Older GPUs (e.g., GTX 9xx) may experience slower processing speeds or errors.\n'
+      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (RTX 20xx and newer).\n'
+      '  - Not Recommended: Older GPUs (GTX series) may experience slower processing speeds or errors.\n'
       '  - Audio quality differences are negligible.'
    )
 
