@@ -595,6 +595,7 @@ class ModelData():
                     
                     if "config_yaml" in self.model_data:
                         self.is_mdx_c = True
+                        self.is_roformer = self.model_data.get("is_roformer", False)
                         config_path = os.path.join(MDX_C_CONFIG_PATH, self.model_data["config_yaml"])
                         if os.path.isfile(config_path):
                             with open(config_path) as f:
@@ -734,15 +735,15 @@ class ModelData():
             self.bv_model_rebalance = self.model_data[IS_BV_MODEL_REBAL]#
    
     def get_mdx_model_path(self):
-        
-        if self.model_name.endswith(CKPT):
+
+        if self.model_name.endswith(CKPT) or self.model_name.endswith('.safetensors'):
             self.is_mdx_ckpt = True
 
         ext = '' if self.is_mdx_ckpt else ONNX
         
         for file_name, chosen_mdx_model in root.mdx_name_select_MAPPER.items():
             if self.model_name in chosen_mdx_model:
-                if file_name.endswith(CKPT):
+                if file_name.endswith(CKPT) or file_name.endswith('.safetensors'):
                     ext = ''
                 self.model_path = os.path.join(MDX_MODELS_DIR, f"{file_name}{ext}")
                 break
@@ -3479,6 +3480,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         delete_your_settings_Option.grid(padx=20,pady=MENU_PADDING_1)
         self.deletion_list_fill(delete_your_settings_Option, option_var, SETTINGS_CACHE_DIR, SELECT_SAVED_SETTING, menu_name='deletesetting')
 
+        delete_model_Label = self.menu_title_LABEL_SET(settings_menu_main_Frame, DELETE_MODEL_TEXT)
+        delete_model_Label.grid(pady=MENU_PADDING_2)
+        self.help_hints(delete_model_Label, text=DELETE_MODEL_HELP)
+        
+        self.delete_model_var = tk.StringVar(value="Select Model to Delete")
+        self.delete_model_Option = ComboBoxMenu(settings_menu_main_Frame, textvariable=self.delete_model_var, width=GEN_SETTINGS_WIDTH+3)
+        self.delete_model_Option.grid(padx=20,pady=MENU_PADDING_1)
+        self.update_delete_model_list()
+
         app_update_Label = self.menu_title_LABEL_SET(settings_menu_main_Frame, APPLICATION_UPDATES_TEXT)
         app_update_Label.grid(pady=MENU_PADDING_2)
         
@@ -4822,6 +4832,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         is_compatible_model = True
         is_ckpt = False
         primary_stem = VOCAL_STEM
+        n_fft = '6144'
+        dim_f = 0
+        dim_t = 0
         
         try:
             if model_path.endswith(ONNX):
@@ -4831,7 +4844,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 dim_t = int(math.log(model_shapes[3], 2))
                 n_fft = '6144'
                 
-            if model_path.endswith(CKPT):
+            elif model_path.endswith(CKPT):
                 is_ckpt = True
                 model_params = torch.load(model_path, map_location=lambda storage, loc: storage)
                 model_params = model_params['hyper_parameters']
@@ -4842,6 +4855,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 for stem in STEM_SET_MENU:
                     if model_params['target_name'] == stem.lower():
                         primary_stem = INST_STEM if model_params['target_name'] == OTHER_STEM.lower() else stem
+            
+            elif model_path.endswith('.safetensors'):
+                is_compatible_model = False
+                self.pop_up_mdx_c_param(mdx_model_hash)
                 
         except Exception as e:
             error_name = f'{type(e).__name__}'
@@ -5473,6 +5490,103 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     os.remove(saved_path)
                     callback(selection)
 
+    def update_delete_model_list(self, remove=None):
+        model_list = []
+        try:
+            for process_method, widget in [
+                (VR_ARCH_TYPE, getattr(self, 'vr_model_Option', None)),
+                (MDX_ARCH_TYPE, getattr(self, 'mdx_net_model_Option', None)),
+                (DEMUCS_ARCH_TYPE, getattr(self, 'demucs_model_Option', None))
+            ]:
+                if widget:
+                    models = widget.cget('values')
+                    if models:
+                        if isinstance(models, str):
+                            models = self.tk.splitlist(models)
+                        for model in models:
+                            if model and model not in [CHOOSE_MODEL, OPT_SEPARATOR, DOWNLOAD_MORE]:
+                                model_list.append(f"[{process_method}] {model}")
+        except Exception:
+            pass
+                    
+        model_list = natsort.natsorted(model_list)
+        if remove and remove in model_list:
+            model_list.remove(remove)
+            
+        if hasattr(self, 'delete_model_Option'):
+            self.delete_model_Option['values'] = model_list
+            if not self.delete_model_Option.bind("<<ComboboxSelected>>"):
+                self.delete_model_Option.bind("<<ComboboxSelected>>", lambda e: self.delete_model_command(self.delete_model_var.get()))
+
+    def delete_model_command(self, selection):
+        if not selection or selection == "Select Model to Delete":
+            return
+            
+        confirm = self.message_box(DELETE_MODEL_CONFIRM_TEXT)
+        if confirm:
+            try:
+                process_method = selection.split("] ")[0][1:]
+                model_name = selection.split("] ", 1)[1]
+                
+                model_path = None
+                
+                if process_method == VR_ARCH_TYPE:
+                    model_path = os.path.join(VR_MODELS_DIR, f"{model_name}.pth")
+                elif process_method == MDX_ARCH_TYPE:
+                    # Check mapper first
+                    for file_name, names in self.mdx_name_select_MAPPER.items():
+                        if model_name in names:
+                            model_path = os.path.join(MDX_MODELS_DIR, file_name)
+                            break
+                    if not model_path:
+                        for ext in ['', ONNX, CKPT, '.safetensors']:
+                            p = os.path.join(MDX_MODELS_DIR, f"{model_name}{ext}")
+                            if os.path.isfile(p):
+                                model_path = p
+                                break
+                elif process_method == DEMUCS_ARCH_TYPE:
+                    for file_name, name in self.demucs_name_select_MAPPER.items():
+                        if model_name == name:
+                            demucs_newer = any(v in file_name for v in [DEMUCS_V3, DEMUCS_V4])
+                            d = DEMUCS_NEWER_REPO_DIR if demucs_newer else DEMUCS_MODELS_DIR
+                            model_path = os.path.join(d, file_name)
+                            break
+
+                if model_path and os.path.exists(model_path):
+                    # Compute hash before deleting
+                    model_hash = None
+                    if os.path.isfile(model_path):
+                        try:
+                            import hashlib
+                            with open(model_path, 'rb') as f:
+                                f.seek(- 10000 * 1024, 2)
+                                model_hash = hashlib.md5(f.read()).hexdigest()
+                        except Exception:
+                            pass
+                        os.remove(model_path)
+                    elif os.path.isdir(model_path):
+                        import shutil
+                        shutil.rmtree(model_path)
+                    
+                    # Remove hash JSON
+                    if model_hash:
+                        hash_json = os.path.join(MDX_HASH_DIR, f'{model_hash}.json')
+                        if os.path.isfile(hash_json):
+                            os.remove(hash_json)
+                        
+                    self.update_available_models()
+                    self.update_delete_model_list(remove=selection)
+                    self.delete_model_var.set("Select Model to Delete")
+                    messagebox.showinfo("Model Deleted", f"Model '{model_name}' has been successfully deleted.", parent=self)
+                else:
+                    messagebox.showwarning("Model Not Found", f"Model file for '{model_name}' was not found.", parent=self)
+                    self.delete_model_var.set("Select Model to Delete")
+                
+            except Exception as e:
+                self.error_log_var.set(error_text("Error Deleting Model", e))
+        else:
+            self.delete_model_var.set("Select Model to Delete")
+
     #--Download Center Methods--    
 
     def online_data_refresh(self, user_refresh=True, confirmation_box=False, refresh_list_Button=False, is_start_up=False, is_download_complete=False):
@@ -5692,7 +5806,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         for filename in data.keys():
                             self.mdx_name_select_MAPPER[filename] = name
 
-            self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Roformer Model: mini-bs-roformer-v2-46.8M"
+            self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
             
             vr_hash_MAPPER_dump = json.dumps(self.vr_hash_MAPPER, indent=4)
             with open(VR_HASH_JSON, "w") as outfile:

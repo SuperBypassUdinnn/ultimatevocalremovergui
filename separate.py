@@ -687,7 +687,7 @@ class SeperateMDXC(SeperateAttributes):
                     self.process_vocal_split_chain({VOCAL_STEM:stem})
         else:
             if len(stem_list) == 1:
-                source_primary = sources  
+                source_primary = sources[self.primary_stem] if isinstance(sources, dict) else sources
             else:
                 source_primary = sources[stem_list[0]] if self.is_multi_stem_ensemble and len(stem_list) == 2 else sources[self.mdxnet_stem_select]
             if self.is_secondary_model_activated and self.secondary_model:
@@ -712,13 +712,16 @@ class SeperateMDXC(SeperateAttributes):
                                 
                         self.secondary_source = secondary_source.T 
                     else:
-                        self.secondary_source, raw_mix = source_primary, self.match_frequency_pitch(mix)
-                        self.secondary_source = spec_utils.to_shape(self.secondary_source, raw_mix.shape)
-                    
-                        if self.is_invert_spec:
-                            self.secondary_source = spec_utils.invert_stem(raw_mix, self.secondary_source)
+                        if isinstance(sources, dict) and self.secondary_stem in sources:
+                            self.secondary_source = sources[self.secondary_stem].T
                         else:
-                            self.secondary_source = (-self.secondary_source.T+raw_mix.T)
+                            self.secondary_source, raw_mix = source_primary, self.match_frequency_pitch(mix)
+                            self.secondary_source = spec_utils.to_shape(self.secondary_source, raw_mix.shape)
+                        
+                            if self.is_invert_spec:
+                                self.secondary_source = spec_utils.invert_stem(raw_mix, self.secondary_source)
+                            else:
+                                self.secondary_source = (-self.secondary_source.T+raw_mix.T)
                             
                 self.secondary_source_map = self.final_process(secondary_stem_path, self.secondary_source, self.secondary_source_secondary, self.secondary_stem, samplerate)    
 
@@ -779,11 +782,42 @@ class SeperateMDXC(SeperateAttributes):
             mix_tensor = torch.tensor(mix, dtype=torch.float32).to(self.device)
             
             S = config.num_stems
+            chunk_size = config.wave_chunk_size
+            overlap_size = chunk_size // 2
+            fade_size = chunk_size // 10
+            gap_size = 0
+
+            import torch.nn.functional as F_torch
+            window = torch.ones(chunk_size - 2 * gap_size)
+            window[:fade_size] = torch.linspace(0, 1, fade_size)
+            window[-fade_size:] = torch.linspace(1, 0, fade_size)
+            window = F_torch.pad(window, (gap_size, gap_size), value=0.0).to(self.device)
+
+            wave_length = mix_tensor.shape[-1]
+            import math as math_mod
+            n_chunks = math_mod.ceil(max(wave_length - chunk_size, 0) / overlap_size) + 1
+            required_length = (n_chunks - 1) * overlap_size + chunk_size
+            padded_wave = F_torch.pad(mix_tensor, (0, required_length - wave_length))
+            unfolded = padded_wave.unfold(-1, chunk_size, overlap_size).permute(1, 0, 2)
+
+            outputs = []
             with torch.no_grad():
-                self.set_progress_bar(0.1)
-                result = model.separate(mix_tensor, batch_size=self.mdx_batch_size, verbose=True)
-                self.set_progress_bar(0.9)
-                
+                for i, chunk_batch in enumerate(unfolded.split(self.mdx_batch_size, dim=0)):
+                    self.set_progress_bar(0.1 + 0.8 * (i * self.mdx_batch_size / n_chunks))
+                    outputs.append(model(chunk_batch))
+            batch_out = torch.cat(outputs, dim=0)
+
+            batch_out = batch_out * window
+            _, num_stems, C, _ = batch_out.shape
+            batch_out = batch_out.view(n_chunks, -1, chunk_size).permute(1, 2, 0)
+            output_buf = F_torch.fold(batch_out, output_size=(1, required_length), kernel_size=(1, chunk_size), stride=(1, overlap_size))
+            output_buf = output_buf.view(num_stems, C, -1)
+            win_fold = window.expand(1, 1, -1).repeat(1, n_chunks, 1)
+            weight_sum = F_torch.fold(win_fold.permute(0, 2, 1), output_size=(1, required_length), kernel_size=(1, chunk_size), stride=(1, overlap_size))
+            weight_sum = weight_sum.view(1, 1, -1).clamp_min_(1e-8)
+            result = (output_buf / weight_sum)[:, :, :wave_length]
+            self.set_progress_bar(0.9)
+
             estimated_sources = result.cpu().detach().numpy()
             del model
             clear_gpu_cache()

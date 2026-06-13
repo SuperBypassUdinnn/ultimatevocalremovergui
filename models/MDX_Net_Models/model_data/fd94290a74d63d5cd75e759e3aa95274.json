@@ -1,0 +1,6 @@
+{
+    "config_yaml": "model_bs_roformer_ep_317_sdr_12.9755.yaml",
+    "is_roformer": true,
+    "model_type": "bs_roformer",
+    "is_karaoke": false
+}
