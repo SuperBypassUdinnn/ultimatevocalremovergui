@@ -673,7 +673,8 @@ DEFAULT_DATA = {
         'is_set_vocal_splitter': False,#
         'is_save_inst_set_vocal_splitter': False,#
         'model_sample_mode': False,
-        'model_sample_mode_duration': 30
+        'model_sample_mode_duration': 30,
+        'ensemble_model_settings': {}
 }
 
 SETTING_CHECK = ('vr_model',

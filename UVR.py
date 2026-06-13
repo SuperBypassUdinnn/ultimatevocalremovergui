@@ -425,6 +425,7 @@ class ModelData():
                  is_vocal_split_model=False):
 
         device_set = root.device_set_var.get()
+        self.ensemble_settings = root.ensemble_model_settings.get(model_name, {}) if selected_process_method == ENSEMBLE_MODE else {}
         self.DENOISER_MODEL = DENOISER_MODEL_PATH
         self.DEVERBER_MODEL = DEVERBER_MODEL_PATH
         self.is_deverb_vocals = root.is_deverb_vocals_var.get() if os.path.isfile(DEVERBER_MODEL_PATH) else False
@@ -438,11 +439,16 @@ class ModelData():
         self.is_secondary_stem_only = root.is_secondary_stem_only_var.get()
         self.is_denoise = True if not root.denoise_option_var.get() == DENOISE_NONE else False
         self.is_mdx_c_seg_def = root.is_mdx_c_seg_def_var.get()#
-        self.mdx_batch_size = 1 if root.mdx_batch_size_var.get() == DEF_OPT else int(root.mdx_batch_size_var.get())
+        mdx_batch_val = self.ensemble_settings.get('mdx_batch_size', root.mdx_batch_size_var.get())
+        self.mdx_batch_size = 1 if mdx_batch_val == DEF_OPT else int(mdx_batch_val)
         self.mdxnet_stem_select = root.mdxnet_stems_var.get() 
-        self.overlap = float(root.overlap_var.get()) if not root.overlap_var.get() == DEFAULT else 0.25
-        self.overlap_mdx = float(root.overlap_mdx_var.get()) if not root.overlap_mdx_var.get() == DEFAULT else root.overlap_mdx_var.get()
-        self.overlap_mdx23 = int(float(root.overlap_mdx23_var.get()))
+        
+        demucs_overlap_val = self.ensemble_settings.get('overlap', root.overlap_var.get())
+        self.overlap = float(demucs_overlap_val) if demucs_overlap_val != DEFAULT else 0.25
+        
+        mdx_overlap_val = self.ensemble_settings.get('overlap_mdx', root.overlap_mdx_var.get())
+        self.overlap_mdx = float(mdx_overlap_val) if mdx_overlap_val != DEFAULT else mdx_overlap_val
+        self.overlap_mdx23 = int(float(self.ensemble_settings.get('overlap_mdx23', root.overlap_mdx23_var.get())))
         self.semitone_shift = float(root.semitone_shift_var.get())
         self.is_pitch_change = False if self.semitone_shift == 0 else True
         self.is_match_frequency_pitch = root.is_match_frequency_pitch_var.get()
@@ -537,12 +543,13 @@ class ModelData():
 
         if self.process_method == VR_ARCH_TYPE:
             self.is_secondary_model_activated = root.vr_is_secondary_model_activate_var.get() if not is_secondary_model else False
-            self.aggression_setting = float(int(root.aggression_setting_var.get())/100)
+            self.aggression_setting = float(int(self.ensemble_settings.get('aggression_setting', root.aggression_setting_var.get()))/100)
             self.is_tta = root.is_tta_var.get()
             self.is_post_process = root.is_post_process_var.get()
-            self.window_size = int(root.window_size_var.get())
-            self.batch_size = 1 if root.batch_size_var.get() == DEF_OPT else int(root.batch_size_var.get())
-            self.crop_size = int(root.crop_size_var.get())
+            self.window_size = int(self.ensemble_settings.get('window_size', root.window_size_var.get()))
+            batch_val = self.ensemble_settings.get('batch_size', root.batch_size_var.get())
+            self.batch_size = 1 if batch_val == DEF_OPT else int(batch_val)
+            self.crop_size = int(self.ensemble_settings.get('crop_size', root.crop_size_var.get()))
             self.is_high_end_process = 'mirroring' if root.is_high_end_process_var.get() else 'None'
             self.post_process_threshold = float(root.post_process_threshold_var.get())
             self.model_capacity = 32, 128
@@ -573,7 +580,7 @@ class ModelData():
             self.is_secondary_model_activated = root.mdx_is_secondary_model_activate_var.get() if not is_secondary_model else False
             self.margin = int(root.margin_var.get())
             self.chunks = 0
-            self.mdx_segment_size = int(root.mdx_segment_size_var.get())
+            self.mdx_segment_size = int(self.ensemble_settings.get('mdx_segment_size', root.mdx_segment_size_var.get()))
             self.get_mdx_model_path()
             self.get_model_hash()
             if self.model_hash:
@@ -632,10 +639,14 @@ class ModelData():
             if not self.is_ensemble_mode:
                 self.pre_proc_model_activated = root.is_demucs_pre_proc_model_activate_var.get() if not root.demucs_stems_var.get() in [VOCAL_STEM, INST_STEM] else False
             self.margin_demucs = int(root.margin_demucs_var.get())
-            self.chunks_demucs = 0
-            self.shifts = int(root.shifts_var.get())
+            
+            chunks_val = self.ensemble_settings.get('chunks_demucs', root.chunks_demucs_var.get())
+            self.chunks_demucs = 0 if chunks_val == AUTO_SELECT or chunks_val == 'Full' else int(chunks_val)
+            self.shifts = int(self.ensemble_settings.get('shifts', root.shifts_var.get()))
             self.is_split_mode = root.is_split_mode_var.get()
-            self.segment = root.segment_var.get()
+            
+            segment_val = self.ensemble_settings.get('segment', root.segment_var.get())
+            self.segment = None if segment_val == DEF_OPT else int(segment_val)
             self.is_chunk_demucs = root.is_chunk_demucs_var.get()
             self.is_primary_stem_only = root.is_primary_stem_only_var.get() if self.is_ensemble_mode else root.is_primary_stem_only_Demucs_var.get() 
             self.is_secondary_stem_only = root.is_secondary_stem_only_var.get() if self.is_ensemble_mode else root.is_secondary_stem_only_Demucs_var.get()
@@ -2030,7 +2041,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     
         # Ensemble Save Ensemble Outputs
         self.ensemble_listbox_Label = self.main_window_LABEL_SET(self.options_Frame, AVAILABLE_MODELS_MAIN_LABEL)
-        self.ensemble_listbox_Label_place = lambda:self.ensemble_listbox_Label.place(x=MAIN_ROW_2_X[0], y=MAIN_ROW_2_Y[1], width=0, height=LABEL_HEIGHT, relx=2/3, rely=5/11, relwidth=1/3, relheight=1/self.COL1_ROWS)
+        self.ensemble_listbox_Label_place = lambda:self.ensemble_listbox_Label.place(x=MAIN_ROW_2_X[0], y=MAIN_ROW_2_Y[1], width=-35, height=LABEL_HEIGHT, relx=2/3, rely=5/11, relwidth=1/3, relheight=1/self.COL1_ROWS)
+        self.ensemble_model_settings_button = ttk.Button(self.options_Frame, image=self.help_img, command=self.open_ensemble_model_settings)
+        self.ensemble_model_settings_button_place = lambda:self.ensemble_model_settings_button.place(x=MAIN_ROW_2_X[0]+4, y=MAIN_ROW_2_Y[1], width=30, height=LABEL_HEIGHT, relx=1.0, rely=5/11, relwidth=0, relheight=1/self.COL1_ROWS, anchor=tk.NE)
         self.ensemble_listbox_Frame = tk.Frame(self.options_Frame, highlightbackground='#04332c', highlightcolor='#04332c', highlightthicknes=1)
         self.ensemble_listbox_Option = tk.Listbox(self.ensemble_listbox_Frame, selectmode=tk.MULTIPLE, activestyle='dotbox', font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), background='#070708', exportselection=0, relief=tk.SOLID, borderwidth=0)
         self.ensemble_listbox_scroll = ttk.Scrollbar(self.options_Frame, orient=tk.VERTICAL)
@@ -2288,6 +2301,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.fileTwo_Entry.dnd_bind('<<Drop>>', lambda e: drop(e, accept_mode=FILE_2))    
             
         self.ensemble_listbox_Option.bind('<<ListboxSelect>>', lambda e: self.chosen_ensemble_var.set(CHOOSE_ENSEMBLE_OPTION))
+        self.ensemble_listbox_Option.bind('<Double-1>', self.open_ensemble_model_settings)
         self.options_Frame.bind(right_click_button, lambda e:(self.right_click_menu_popup(e, main_menu=True), self.options_Frame.focus()))
         self.filePaths_musicFile_Entry.bind(right_click_button, lambda e:(self.input_right_click_menu(e), self.filePaths_musicFile_Entry.focus()))
         self.filePaths_musicFile_Entry.bind('<Button-1>', lambda e:(self.check_is_menu_open(INPUTS_MENU), self.filePaths_musicFile_Entry.focus()))
@@ -5297,6 +5311,121 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             with open(os.path.join(ENSEMBLE_CACHE_DIR, f'{ensemble_save_name}.json'), "w") as outfile:
                 outfile.write(saved_data_dump)
 
+    def open_ensemble_model_settings(self, event=None):
+        selected_indices = self.ensemble_listbox_Option.curselection()
+        if not selected_indices:
+            return
+
+        models_info = []
+        for idx in selected_indices:
+            model_name = self.ensemble_listbox_Option.get(idx)
+            process_method, _, actual_model_name = model_name.partition(ENSEMBLE_PARTITION)
+            models_info.append((model_name, process_method, actual_model_name))
+            
+        self.pop_up_ensemble_model_settings(models_info)
+
+    def pop_up_ensemble_model_settings(self, models_info):
+        settings_menu = tk.Toplevel()
+        settings_Frame = self.menu_FRAME_SET(settings_menu)
+        settings_Frame.grid(row=0)
+        
+        # Determine if we need a notebook
+        use_notebook = len(models_info) > 1
+        if use_notebook:
+            title_text = "Settings: Multiple Models"
+            container = ttk.Notebook(settings_Frame)
+            container.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        else:
+            title_text = f"Settings: {models_info[0][2]}"
+            title_title = self.menu_title_LABEL_SET(settings_Frame, title_text, width=35)
+            title_title.grid(row=0, column=0, padx=0, pady=0)
+            container = settings_Frame
+
+        vars_dict = {}  # {full_model_name: {key: var}}
+        
+        row_idx_global = 1 if not use_notebook else 1
+
+        for full_model_name, process_method, actual_model_name in models_info:
+            vars_dict[full_model_name] = {}
+            model_settings = self.ensemble_model_settings.get(full_model_name, {})
+            
+            if use_notebook:
+                page_frame = tk.Frame(container, bg="#070708")
+                container.add(page_frame, text=actual_model_name)
+                parent_frame = page_frame
+                row_idx = 0
+            else:
+                parent_frame = container
+                row_idx = 1
+                
+            def add_option(label_text, key, values, default_val, pf, r_idx, f_name):
+                lbl = self.menu_sub_LABEL_SET(pf, label_text)
+                lbl.grid(row=r_idx, pady=MENU_PADDING_1)
+                r_idx += 1
+                var = tk.StringVar(value=str(model_settings.get(key, default_val)))
+                vars_dict[f_name][key] = var
+                opt = ComboBoxMenu(pf, textvariable=var, values=values, width=30)
+                opt.grid(row=r_idx, padx=20, pady=MENU_PADDING_1)
+                r_idx += 1
+                return r_idx
+
+            if process_method == MDX_ARCH_TYPE:
+                is_mdx_c = False
+                try:
+                    temp_model = ModelData(full_model_name, is_change_def=False)
+                    is_mdx_c = temp_model.is_mdx_c
+                except Exception as e:
+                    pass
+
+                row_idx = add_option("Segment Size", "mdx_segment_size", MDX_SEGMENTS, self.mdx_segment_size_var.get(), parent_frame, row_idx, full_model_name)
+                
+                if is_mdx_c:
+                    row_idx = add_option("Overlap", "overlap_mdx23", MDX23_OVERLAP, self.overlap_mdx23_var.get(), parent_frame, row_idx, full_model_name)
+                else:
+                    row_idx = add_option("Overlap", "overlap_mdx", MDX_OVERLAP, self.overlap_mdx_var.get(), parent_frame, row_idx, full_model_name)
+                
+            elif process_method == VR_ARCH_TYPE:
+                row_idx = add_option("Window Size", "window_size", VR_WINDOW, self.window_size_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Aggression", "aggression_setting", list(VR_AGGRESSION), self.aggression_setting_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Crop Size", "crop_size", VR_CROP, self.crop_size_var.get(), parent_frame, row_idx, full_model_name)
+                
+            elif process_method == DEMUCS_ARCH_TYPE:
+                row_idx = add_option("Segment", "segment", DEMUCS_SEGMENTS, self.segment_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Overlap", "overlap", DEMUCS_OVERLAP, self.overlap_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Shifts", "shifts", DEMUCS_SHIFTS, self.shifts_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Chunks", "chunks_demucs", CHUNKS, self.chunks_demucs_var.get(), parent_frame, row_idx, full_model_name)
+                
+            if not use_notebook:
+                row_idx_global = row_idx
+
+        def save():
+            for f_name, v_dict in vars_dict.items():
+                new_settings = self.ensemble_model_settings.get(f_name, {})
+                for k, v in v_dict.items():
+                    new_settings[k] = v.get()
+                self.ensemble_model_settings[f_name] = new_settings
+            settings_menu.destroy()
+            
+        def reset():
+            for f_name in vars_dict.keys():
+                if f_name in self.ensemble_model_settings:
+                    del self.ensemble_model_settings[f_name]
+            settings_menu.destroy()
+
+        save_btn = ttk.Button(settings_Frame, text=CONFIRM_TEXT, command=save)
+        save_btn.grid(row=row_idx_global, pady=MENU_PADDING_1)
+        row_idx_global += 1
+        
+        reset_btn = ttk.Button(settings_Frame, text=RESET_TO_DEFAULT, command=reset)
+        reset_btn.grid(row=row_idx_global, pady=MENU_PADDING_1)
+        row_idx_global += 1
+
+        cancel_btn = ttk.Button(settings_Frame, text=CANCEL_TEXT, command=settings_menu.destroy)
+        cancel_btn.grid(row=row_idx_global, pady=MENU_PADDING_1)
+        
+        settings_menu.protocol("WM_DELETE_WINDOW", settings_menu.destroy)
+        self.menu_placement(settings_menu, "Model Settings", pop_up=True)
+
     def deletion_list_fill(self, option_menu: ComboBoxMenu, selection_var: tk.StringVar, selection_dir, var_set, menu_name=None):
         """Fills the saved settings menu located in tab 2 of the main settings window"""
                 
@@ -5984,6 +6113,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                           self.ensemble_type_Label_place, 
                           self.ensemble_type_Option_place, 
                           self.ensemble_listbox_Label_place, 
+                          self.ensemble_model_settings_button_place, 
                           self.ensemble_listbox_Option_place, 
                           self.ensemble_listbox_Option_pack, 
                           general_shared_buttons, 
@@ -7247,7 +7377,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Initializes primary Tkinter vars"""
         
         self.active_custom_config_name = data.get('active_custom_config_name', None)
-        
+        self.active_ensemble_name = data.get('active_ensemble_name', None)
+        self.ensemble_model_settings = data.get('ensemble_model_settings', {})      
         for key, value in DEFAULT_DATA.items():
             if not key in data.keys():
                 data = {**data, **{key:value}}
@@ -7696,6 +7827,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'fileTwoEntry_Full': self.fileTwoEntry_Full_var.get(),
             'DualBatch_inputPaths': self.DualBatch_inputPaths,
             'active_custom_config_name': self.active_custom_config_name,
+            'active_ensemble_name': getattr(self, 'active_ensemble_name', None),
+            'ensemble_model_settings': getattr(self, 'ensemble_model_settings', {}),
             #'model_hash_table': model_hash_table,
         }
 

@@ -525,8 +525,9 @@ class SeperateMDX(SeperateAttributes):
                 
             self.primary_source_map = self.final_process(primary_stem_path, self.primary_source, self.secondary_source_primary, self.primary_stem, samplerate)
         
+        if hasattr(self, 'model_run'):
+            del self.model_run
         clear_gpu_cache()
-
         secondary_sources = {**self.primary_source_map, **self.secondary_source_map}
         
         self.process_vocal_split_chain(secondary_sources)
@@ -634,7 +635,8 @@ class SeperateMDX(SeperateAttributes):
         if is_match_mix:
             spec_pred = spek.cpu().numpy()
         else:
-            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+            device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
+            with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
                 spec_pred = -self.model_run(-spek)*0.5+self.model_run(spek)*0.5 if self.is_denoise else self.model_run(spek)
 
         return self.stft.inverse(torch.tensor(spec_pred).to(self.device)).cpu().detach().numpy()
@@ -771,7 +773,8 @@ class SeperateMDXC(SeperateAttributes):
             cnt = 0
             for batch in batches:
                 self.running_inference_progress_bar(len(batches))
-                with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+                device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
+                with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
                     x = model(batch.pin_memory().to(self.device, non_blocking=True))
                 
                 for w in x:
@@ -791,12 +794,18 @@ class SeperateMDXC(SeperateAttributes):
                     if sources[VOCAL_STEM].shape[1] != org_mix.shape[1]:
                         sources[VOCAL_STEM] = spec_utils.match_array_shapes(sources[VOCAL_STEM], org_mix)
                     sources[INST_STEM] = org_mix - sources[VOCAL_STEM]
-                            
+                    
+            del model
+            clear_gpu_cache()
             return sources
         else:
             est_s = estimated_sources.cpu().detach().numpy()
             del estimated_sources
-            return pitch_fix(est_s) if self.is_pitch_change else est_s
+            source = pitch_fix(est_s) if self.is_pitch_change else est_s
+            
+            del model
+            clear_gpu_cache()
+            return source
 
 class SeperateDemucs(SeperateAttributes):
     def seperate(self):
@@ -967,6 +976,10 @@ class SeperateDemucs(SeperateAttributes):
                 
                 self.primary_source_map = self.final_process(primary_stem_path, self.primary_source, self.secondary_source_primary, self.primary_stem, samplerate)
 
+            if hasattr(self, 'demucs'):
+                del self.demucs
+            clear_gpu_cache()
+            
             secondary_sources = {**self.primary_source_map, **self.secondary_source_map}
             
             self.process_vocal_split_chain(secondary_sources)
@@ -988,7 +1001,8 @@ class SeperateDemucs(SeperateAttributes):
         mix_infer = mix 
         
         with torch.no_grad():
-            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+            device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
+            with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
                 if self.demucs_version == DEMUCS_V1:
                     sources = apply_model_v1(self.demucs, 
                                                 mix_infer.to(self.device), 
@@ -1083,6 +1097,8 @@ class SeperateVR(SeperateAttributes):
             
             self.secondary_source_map = self.final_process(secondary_stem_path, self.secondary_source, self.secondary_source_secondary, self.secondary_stem, 44100)
             
+        if hasattr(self, 'model_run'):
+            del self.model_run
         clear_gpu_cache()
         secondary_sources = {**self.primary_source_map, **self.secondary_source_map}
         
@@ -1152,7 +1168,8 @@ class SeperateVR(SeperateAttributes):
                     self.set_progress_bar(0.1, 0.8/total_iterations*self.progress_value)
                     X_batch = X_dataset[i: i + self.batch_size]
                     X_batch = torch.from_numpy(X_batch).pin_memory().to(device, non_blocking=True)
-                    with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=self.is_half_precision and device.type == 'cuda'):
+                    device_type_str = device.type if not isinstance(device, str) else device.split(':')[0]
+                    with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
                         pred = self.model_run.predict_mask(X_batch)
                     if not pred.size()[3] > 0:
                         raise Exception(ERROR_MAPPER[WINDOW_SIZE_ERROR])
