@@ -3662,7 +3662,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.active_download_thread.terminate() if self.thread_check(self.active_download_thread) else None
             self.is_menu_settings_open = False
             self.select_download_var.set('')
-            self.queue_treeview = None
             settings_menu.destroy()
 
         #self.update_checkbox_text()
