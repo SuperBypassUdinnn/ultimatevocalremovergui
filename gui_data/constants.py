@@ -637,6 +637,7 @@ DEFAULT_DATA = {
         'pitch_rate': 2.0,
         'is_time_correction': True,
         'is_gpu_conversion': False,
+        'is_half_precision': False,
         'is_primary_stem_only': False,
         'is_secondary_stem_only': False,
         'is_testing_audio': False,#
@@ -767,6 +768,7 @@ SETTING_CHECK = ('vr_model',
                'device_set',
                'user_code',
                'is_gpu_conversion',
+               'is_half_precision',
                'is_normalization',
                'is_replaygain',
                'is_use_opencl',
@@ -1016,6 +1018,13 @@ if OPERATING_SYSTEM == 'darwin':
       '  - CPU processing is significantly slower than GPU processing.\n'
       '  - Only Macs with M1 chips can be used for GPU processing.'
    )
+   IS_HALF_PRECISION_HELP = (
+      '• Half-Precision (AMP):\n'
+      '  - Recommended: Greatly reduces GPU VRAM usage (up to 50%) and may speed up processing.\n'
+      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (GTX 10xx, RTX 20xx and newer).\n'
+      '  - Not Recommended: Older GPUs (e.g., GTX 9xx) may experience slower processing speeds or errors.\n'
+      '  - Audio quality differences are negligible.'
+   )
 else:
    IS_GPU_CONVERSION_HELP = (
       '• Use GPU for Processing (if available):\n'
@@ -1024,6 +1033,13 @@ else:
       '• Please Note:\n'
       '  - CPU processing is significantly slower than GPU processing.\n'
       '  - Only Nvidia GPUs can be used for GPU processing.'
+   )
+   IS_HALF_PRECISION_HELP = (
+      '• Half-Precision (AMP):\n'
+      '  - Recommended: Greatly reduces GPU VRAM usage (up to 50%) and may speed up processing.\n'
+      '  - Uses PyTorch Automatic Mixed Precision (FP16) on supported Nvidia GPUs (GTX 10xx, RTX 20xx and newer).\n'
+      '  - Not Recommended: Older GPUs (e.g., GTX 9xx) may experience slower processing speeds or errors.\n'
+      '  - Audio quality differences are negligible.'
    )
 
 IS_TIME_CORRECTION_HELP = ('When checked, the output will retain the original BPM of the input.')
@@ -1359,6 +1375,7 @@ CHOOSE_MANUAL_ALGORITHM_MAIN_LABEL = 'CHOOSE ALGORITHM'
 CHOOSE_RATE_MAIN_LABEL = 'RATE'
 CHOOSE_SEMITONES_MAIN_LABEL = 'SEMITONES'
 GPU_CONVERSION_MAIN_LABEL = 'GPU Conversion'
+HALF_PRECISION_MAIN_LABEL = 'Half-Precision (AMP)'
 CHANGE_LOG_HEADER = lambda patch:f"Patch Version:\n\n{patch}"
 INVALID_INPUT_E = ' Invalid input! '
 LB_UP = "Move Selection Up"

@@ -94,6 +94,7 @@ class SeperateAttributes:
         self.is_4_stem_ensemble = process_data['is_4_stem_ensemble']
         self.list_all_models = process_data['list_all_models']
         self.process_iteration = process_data['process_iteration']
+        self.is_half_precision = process_data.get('is_half_precision', False)
         self.is_return_dual = is_return_dual
         self.is_pitch_change = model_data.is_pitch_change
         self.semitone_shift = model_data.semitone_shift
@@ -633,7 +634,8 @@ class SeperateMDX(SeperateAttributes):
         if is_match_mix:
             spec_pred = spek.cpu().numpy()
         else:
-            spec_pred = -self.model_run(-spek)*0.5+self.model_run(spek)*0.5 if self.is_denoise else self.model_run(spek)
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+                spec_pred = -self.model_run(-spek)*0.5+self.model_run(spek)*0.5 if self.is_denoise else self.model_run(spek)
 
         return self.stft.inverse(torch.tensor(spec_pred).to(self.device)).cpu().detach().numpy()
 
@@ -769,7 +771,8 @@ class SeperateMDXC(SeperateAttributes):
             cnt = 0
             for batch in batches:
                 self.running_inference_progress_bar(len(batches))
-                x = model(batch.to(self.device))
+                with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+                    x = model(batch.pin_memory().to(self.device, non_blocking=True))
                 
                 for w in x:
                     X[..., cnt * hop_size : cnt * hop_size + chunk_size] += w
@@ -985,28 +988,29 @@ class SeperateDemucs(SeperateAttributes):
         mix_infer = mix 
         
         with torch.no_grad():
-            if self.demucs_version == DEMUCS_V1:
-                sources = apply_model_v1(self.demucs, 
-                                            mix_infer.to(self.device), 
-                                            self.shifts, 
-                                            self.is_split_mode,
-                                            set_progress_bar=self.set_progress_bar)
-            elif self.demucs_version == DEMUCS_V2:
-                sources = apply_model_v2(self.demucs, 
-                                            mix_infer.to(self.device), 
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.is_half_precision and self.device.type == 'cuda'):
+                if self.demucs_version == DEMUCS_V1:
+                    sources = apply_model_v1(self.demucs, 
+                                                mix_infer.to(self.device), 
+                                                self.shifts, 
+                                                self.is_split_mode,
+                                                set_progress_bar=self.set_progress_bar)
+                elif self.demucs_version == DEMUCS_V2:
+                    sources = apply_model_v2(self.demucs, 
+                                                mix_infer.to(self.device), 
+                                                self.shifts,
+                                                self.is_split_mode,
+                                                self.overlap,
+                                                set_progress_bar=self.set_progress_bar)
+                else:
+                    sources = apply_model(self.demucs, 
+                                            mix_infer[None], 
                                             self.shifts,
                                             self.is_split_mode,
                                             self.overlap,
-                                            set_progress_bar=self.set_progress_bar)
-            else:
-                sources = apply_model(self.demucs, 
-                                        mix_infer[None], 
-                                        self.shifts,
-                                        self.is_split_mode,
-                                        self.overlap,
-                                        static_shifts=1 if self.shifts == 0 else self.shifts,
-                                        set_progress_bar=self.set_progress_bar,
-                                        device=self.device)[0]
+                                            static_shifts=1 if self.shifts == 0 else self.shifts,
+                                            set_progress_bar=self.set_progress_bar,
+                                            device=self.device)[0]
         
         sources = (sources * ref.std() + ref.mean()).cpu().numpy()
         sources[[0,1]] = sources[[1,0]]
@@ -1147,8 +1151,9 @@ class SeperateVR(SeperateAttributes):
                         self.progress_value = total_iterations
                     self.set_progress_bar(0.1, 0.8/total_iterations*self.progress_value)
                     X_batch = X_dataset[i: i + self.batch_size]
-                    X_batch = torch.from_numpy(X_batch).to(device)
-                    pred = self.model_run.predict_mask(X_batch)
+                    X_batch = torch.from_numpy(X_batch).pin_memory().to(device, non_blocking=True)
+                    with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=self.is_half_precision and device.type == 'cuda'):
+                        pred = self.model_run.predict_mask(X_batch)
                     if not pred.size()[3] > 0:
                         raise Exception(ERROR_MAPPER[WINDOW_SIZE_ERROR])
                     pred = pred.detach().cpu().numpy()

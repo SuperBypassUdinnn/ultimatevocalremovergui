@@ -2145,22 +2145,27 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.is_gpu_conversion_Enable = lambda:self.is_gpu_conversion_Option.configure(state=tk.NORMAL)
         self.help_hints(self.is_gpu_conversion_Option, text=IS_GPU_CONVERSION_HELP)
 
+        # Half-Precision (AMP)
+        self.is_half_precision_Option = ttk.Checkbutton(master=self.options_Frame, text=HALF_PRECISION_MAIN_LABEL, variable=self.is_half_precision_var)
+        self.is_half_precision_Option_place = lambda:self.is_half_precision_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=6/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
+        self.help_hints(self.is_half_precision_Option, text=IS_HALF_PRECISION_HELP)
+
         # Vocal Only
         self.is_primary_stem_only_Option = ttk.Checkbutton(master=self.options_Frame, textvariable=self.is_primary_stem_only_Text_var, variable=self.is_primary_stem_only_var, command=lambda:self.is_primary_stem_only_Option_toggle())
-        self.is_primary_stem_only_Option_place = lambda:self.is_primary_stem_only_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=6/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
+        self.is_primary_stem_only_Option_place = lambda:self.is_primary_stem_only_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=7/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
         self.is_primary_stem_only_Option_toggle = lambda:self.is_secondary_stem_only_var.set(False) if self.is_primary_stem_only_var.get() else self.is_secondary_stem_only_Option.configure(state=tk.NORMAL)
         self.help_hints(self.is_primary_stem_only_Option, text=SAVE_STEM_ONLY_HELP)
         
         # Instrumental Only 
         self.is_secondary_stem_only_Option = ttk.Checkbutton(master=self.options_Frame, textvariable=self.is_secondary_stem_only_Text_var, variable=self.is_secondary_stem_only_var, command=lambda:self.is_secondary_stem_only_Option_toggle())
-        self.is_secondary_stem_only_Option_place = lambda:self.is_secondary_stem_only_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=7/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
+        self.is_secondary_stem_only_Option_place = lambda:self.is_secondary_stem_only_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=8/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
         self.is_secondary_stem_only_Option_toggle = lambda:self.is_primary_stem_only_var.set(False) if self.is_secondary_stem_only_var.get() else self.is_primary_stem_only_Option.configure(state=tk.NORMAL)
         self.is_stem_only_Options_Enable = lambda:(self.is_primary_stem_only_Option.configure(state=tk.NORMAL), self.is_secondary_stem_only_Option.configure(state=tk.NORMAL))
         self.help_hints(self.is_secondary_stem_only_Option, text=SAVE_STEM_ONLY_HELP)
         
         # Sample Mode
         self.model_sample_mode_Option = ttk.Checkbutton(master=self.options_Frame, textvariable=self.model_sample_mode_duration_checkbox_var, variable=self.model_sample_mode_var)#f'Sample ({self.model_sample_mode_duration_var.get()} Seconds)'
-        self.model_sample_mode_Option_place = lambda rely=8:self.model_sample_mode_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=rely/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
+        self.model_sample_mode_Option_place = lambda rely=9:self.model_sample_mode_Option.place(x=CHECK_BOX_X, y=CHECK_BOX_Y, width=CHECK_BOX_WIDTH, height=CHECK_BOX_HEIGHT, relx=1/3, rely=rely/self.COL2_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
         self.help_hints(self.model_sample_mode_Option, text=MODEL_SAMPLE_MODE_HELP)
         
         self.GUI_LIST = (self.vr_model_Label,
@@ -5881,6 +5886,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         def general_shared_buttons():
             place_widgets(self.is_gpu_conversion_Option_place, 
+                          self.is_half_precision_Option_place,
                           self.model_sample_mode_Option_place)
 
         def stem_save_options():
@@ -5985,6 +5991,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         if not self.is_gpu_available:
             self.is_gpu_conversion_Disable()
+            self.is_half_precision_Option.configure(state=tk.DISABLED)
+            self.is_half_precision_var.set(False)
+        else:
+            try:
+                cap = torch.cuda.get_device_capability()
+                if cap[0] < 7:
+                    self.is_half_precision_Option.configure(state=tk.DISABLED)
+                    self.is_half_precision_var.set(False)
+                    self.help_hints(self.is_half_precision_Option, text="Half-Precision disabled: GPU does not support Tensor Cores well (Compute Capability < 7.0).")
+            except Exception:
+                pass
 
         self.update_inputPaths()
 
@@ -7135,6 +7152,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                     'cached_model_source_holder': self.cached_model_source_holder,
                                     'list_all_models': self.all_models,
                                     'is_ensemble_master': is_ensemble,
+                                    'is_half_precision': getattr(task, 'is_half_precision', self.is_half_precision_var.get()) if task else self.is_half_precision_var.get(),
                                     'is_4_stem_ensemble': True if (task.ensemble_main_stem if task else self.ensemble_main_stem_var.get()) in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE] and is_ensemble else False}
                     
                     if current_model.process_method == VR_ARCH_TYPE:
@@ -7338,6 +7356,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.device_set_var = tk.StringVar(value=data['device_set'])#
         self.user_code_var = tk.StringVar(value=data['user_code']) 
         self.is_gpu_conversion_var = tk.BooleanVar(value=data['is_gpu_conversion'])
+        self.is_half_precision_var = tk.BooleanVar(value=data.get('is_half_precision', False))
+        self.is_half_precision_var = tk.BooleanVar(value=data.get('is_half_precision', False))
         self.is_primary_stem_only_var = tk.BooleanVar(value=data['is_primary_stem_only'])
         self.is_secondary_stem_only_var = tk.BooleanVar(value=data['is_secondary_stem_only'])
         self.is_testing_audio_var = tk.BooleanVar(value=data['is_testing_audio'])#
@@ -7529,6 +7549,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         # Process method already switched at the top of this function if needed
 
         self.is_gpu_conversion_var.set(loaded_setting['is_gpu_conversion'])
+        self.is_half_precision_var.set(loaded_setting.get('is_half_precision', False))
         self.is_normalization_var.set(loaded_setting['is_normalization'])#
         self.is_replaygain_var.set(loaded_setting.get('is_replaygain', False))
         self.is_use_opencl_var.set(False)#True if is_opencl_only else loaded_setting['is_use_opencl'])#
@@ -7634,6 +7655,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'pitch_rate': self.pitch_rate_var.get(),#
             'is_time_correction': self.is_time_correction_var.get(),#
             'is_gpu_conversion': self.is_gpu_conversion_var.get(),
+            'is_half_precision': self.is_half_precision_var.get(),
             'is_primary_stem_only': self.is_primary_stem_only_var.get(),
             'is_secondary_stem_only': self.is_secondary_stem_only_var.get(),
             'is_testing_audio': self.is_testing_audio_var.get(),#
