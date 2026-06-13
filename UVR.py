@@ -7983,19 +7983,30 @@ def extract_stems(audio_file_base, export_path):
     return list(set(filtered_lst))
 
 if __name__ == "__main__":
+    from filelock import FileLock, Timeout
+    import sys
+
+    # Lock file to prevent multiple instances and avoid OOM
+    lock_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "UVR.lock")
+    lock = FileLock(lock_path, timeout=1)
 
     try:
-        windll.user32.SetThreadDpiAwarenessContext(wintypes.HANDLE(-1))
-    except Exception as e:
-        if OPERATING_SYSTEM == 'Windows':
-            print(e)
-    
-    root = MainWindow()
-    root.update_checkbox_text()
-    root.is_root_defined_var.set(True)
-    root.is_check_splash = True
+        with lock:
+            try:
+                windll.user32.SetThreadDpiAwarenessContext(wintypes.HANDLE(-1))
+            except Exception as e:
+                if OPERATING_SYSTEM == 'Windows':
+                    print(e)
+            
+            root = MainWindow()
+            root.update_checkbox_text()
+            root.is_root_defined_var.set(True)
+            root.is_check_splash = True
 
-    root.update() if is_windows else root.update_idletasks()
-    root.deiconify()
-    root.configure(bg=BG_COLOR)
-    root.mainloop()
+            root.update() if is_windows else root.update_idletasks()
+            root.deiconify()
+            root.configure(bg=BG_COLOR)
+            root.mainloop()
+    except Timeout:
+        print("Another instance of UVR is already running. Exiting to prevent Out of Memory (OOM) errors.")
+        sys.exit(1)
