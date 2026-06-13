@@ -363,6 +363,7 @@ class QueueTask:
         self.is_secondary_stem_only = root.is_secondary_stem_only_var.get()
         self.is_primary_stem_only = root.is_primary_stem_only_var.get()
         self.is_task_complete = root.is_task_complete_var.get()
+        self.chosen_ensemble = root.chosen_ensemble_var.get()
         
         # Audio Tools snapshot variables
         self.chosen_audio_tool = root.chosen_audio_tool_var.get()
@@ -6724,7 +6725,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         method_str = task.chosen_audio_tool
                     else:
                         if task.process_method == ENSEMBLE_MODE:
-                            method_str = "Ensemble"
+                            if hasattr(task, 'chosen_ensemble') and task.chosen_ensemble and task.chosen_ensemble != CHOOSE_ENSEMBLE_OPTION:
+                                method_str = f"Ensemble - {task.chosen_ensemble}"
+                            else:
+                                method_str = "Ensemble"
                         else:
                             if isinstance(task.model_data, list) and task.model_data:
                                 method_str = ", ".join(m.model_name for m in task.model_data)
