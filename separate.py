@@ -484,7 +484,7 @@ class SeperateMDX(SeperateAttributes):
             self.start_inference_console_write()
 
             if self.is_mdx_ckpt:
-                model_params = torch.load(self.model_path, map_location=lambda storage, loc: storage)['hyper_parameters']
+                model_params = torch.load(self.model_path, map_location=lambda storage, loc: storage, weights_only=False)['hyper_parameters']
                 self.dim_c, self.hop = model_params['dim_c'], model_params['hop_length']
                 separator = MdxnetSet.ConvTDFNet(**model_params)
                 self.model_run = separator.load_from_checkpoint(self.model_path).to(self.device).eval()
@@ -774,7 +774,7 @@ class SeperateMDXC(SeperateAttributes):
                 from lib_v5.safetensors import load_safetensors
                 state_dict = load_safetensors(self.model_path)
             else:
-                state_dict = torch.load(self.model_path, map_location=cpu)
+                state_dict = torch.load(self.model_path, map_location=cpu, weights_only=False)
                 
             model.load_state_dict(state_dict)
             model.to(self.device).eval()
@@ -842,7 +842,7 @@ class SeperateMDXC(SeperateAttributes):
                 return pitch_fix(est_s) if self.is_pitch_change else est_s
 
         model = TFC_TDF_net(self.mdx_c_configs, device=self.device)
-        model.load_state_dict(torch.load(self.model_path, map_location=cpu))
+        model.load_state_dict(torch.load(self.model_path, map_location=cpu, weights_only=False))
         model.to(self.device).eval()
         mix = torch.tensor(mix, dtype=torch.float32)
 
@@ -931,14 +931,14 @@ class SeperateDemucs(SeperateAttributes):
             if self.demucs_version == DEMUCS_V1:
                 if str(self.model_path).endswith(".gz"):
                     self.model_path = gzip.open(self.model_path, "rb")
-                klass, args, kwargs, state = torch.load(self.model_path)
+                klass, args, kwargs, state = torch.load(self.model_path, weights_only=False)
                 self.demucs = klass(*args, **kwargs)
                 self.demucs.to(self.device) 
                 self.demucs.load_state_dict(state)
             elif self.demucs_version == DEMUCS_V2:
                 self.demucs = auto_load_demucs_model_v2(self.demucs_source_list, self.model_path)
                 self.demucs.to(self.device) 
-                self.demucs.load_state_dict(torch.load(self.model_path))
+                self.demucs.load_state_dict(torch.load(self.model_path, weights_only=False))
                 self.demucs.eval()
             else:  
                 self.demucs = HDemucs(sources=self.demucs_source_list)
@@ -1164,7 +1164,7 @@ class SeperateVR(SeperateAttributes):
             else:
                 self.model_run = nets.determine_model_capacity(self.mp.param['bins'] * 2, nn_arch_size)
                             
-            self.model_run.load_state_dict(torch.load(self.model_path, map_location=cpu)) 
+            self.model_run.load_state_dict(torch.load(self.model_path, map_location=cpu, weights_only=False)) 
             self.model_run.to(device) 
 
             self.running_inference_console_write()
@@ -1501,7 +1501,7 @@ def vr_denoiser(X, device, hop_length=1024, n_fft=2048, cropsize=256, is_deverbe
         nout, nout_lstm = 16, 128
     
     model = nets_new.CascadedNet(n_fft, nout=nout, nout_lstm=nout_lstm)
-    model.load_state_dict(torch.load(model_path, map_location=cpu))
+    model.load_state_dict(torch.load(model_path, map_location=cpu, weights_only=False))
     model.to(device)
 
     if mp is None:

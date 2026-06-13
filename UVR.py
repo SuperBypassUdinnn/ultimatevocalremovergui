@@ -4849,7 +4849,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 
             elif model_path.endswith(CKPT):
                 is_ckpt = True
-                model_params = torch.load(model_path, map_location=lambda storage, loc: storage)
+                model_params = torch.load(model_path, map_location=lambda storage, loc: storage, weights_only=False)
                 model_params = model_params['hyper_parameters']
                 dim_f = model_params['dim_f']
                 dim_t = int(math.log(model_params['dim_t'], 2))
@@ -5411,6 +5411,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     pass
 
                 row_idx = add_option("Segment Size", "mdx_segment_size", MDX_SEGMENTS, self.mdx_segment_size_var.get(), parent_frame, row_idx, full_model_name)
+                row_idx = add_option("Batch Size", "mdx_batch_size", BATCH_SIZE, self.mdx_batch_size_var.get(), parent_frame, row_idx, full_model_name)
                 
                 if is_mdx_c:
                     row_idx = add_option("Overlap", "overlap_mdx23", MDX23_OVERLAP, self.overlap_mdx23_var.get(), parent_frame, row_idx, full_model_name)
@@ -5813,6 +5814,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
+            
+            # Clean up MDX23C prefixes that get pulled from online_data
+            for k, v in self.mdx_name_select_MAPPER.items():
+                if v.startswith(f"{MDX_23_NAME}: "):
+                    self.mdx_name_select_MAPPER[k] = v.replace(f"{MDX_23_NAME}: ", "")
             
             vr_hash_MAPPER_dump = json.dumps(self.vr_hash_MAPPER, indent=4)
             with open(VR_HASH_JSON, "w") as outfile:
