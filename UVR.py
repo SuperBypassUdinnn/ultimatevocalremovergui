@@ -5255,7 +5255,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         ensemble_save = tk.Toplevel(root)
         
-        ensemble_save_var = tk.StringVar(value='')
+        current_ensemble = self.chosen_ensemble_var.get()
+        default_save_name = current_ensemble if current_ensemble != CHOOSE_ENSEMBLE_OPTION else ''
+        ensemble_save_var = tk.StringVar(value=default_save_name)
 
         ensemble_save_Frame = self.menu_FRAME_SET(ensemble_save)
         ensemble_save_Frame.grid(row=1)  
@@ -5304,6 +5306,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             saved_data = {
                 'ensemble_main_stem': self.ensemble_main_stem_var.get(),
                 'ensemble_type': self.ensemble_type_var.get(),
+                'is_save_all_outputs_ensemble': self.is_save_all_outputs_ensemble_var.get(),
+                'is_append_ensemble_name': self.is_append_ensemble_name_var.get(),
+                'is_wav_ensemble': self.is_wav_ensemble_var.get(),
+                'is_gpu_conversion': self.is_gpu_conversion_var.get(),
+                'is_half_precision': self.is_half_precision_var.get(),
+                'is_primary_stem_only': self.is_primary_stem_only_var.get(),
+                'is_secondary_stem_only': self.is_secondary_stem_only_var.get(),
                 'selected_models': selected_ensemble_model,
                 }
             
@@ -6371,6 +6380,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.selection_action_ensemble_stems(saved_data['ensemble_main_stem'], from_menu=False)
             self.ensemble_main_stem_var.set(saved_data['ensemble_main_stem'])
             self.ensemble_type_var.set(saved_data['ensemble_type'])
+            
+            if 'is_save_all_outputs_ensemble' in saved_data:
+                self.is_save_all_outputs_ensemble_var.set(saved_data['is_save_all_outputs_ensemble'])
+            if 'is_append_ensemble_name' in saved_data:
+                self.is_append_ensemble_name_var.set(saved_data['is_append_ensemble_name'])
+            if 'is_wav_ensemble' in saved_data:
+                self.is_wav_ensemble_var.set(saved_data['is_wav_ensemble'])
+            if 'is_gpu_conversion' in saved_data:
+                self.is_gpu_conversion_var.set(saved_data['is_gpu_conversion'])
+            if 'is_half_precision' in saved_data:
+                self.is_half_precision_var.set(saved_data['is_half_precision'])
+            if 'is_primary_stem_only' in saved_data:
+                self.is_primary_stem_only_var.set(saved_data['is_primary_stem_only'])
+            if 'is_secondary_stem_only' in saved_data:
+                self.is_secondary_stem_only_var.set(saved_data['is_secondary_stem_only'])
+                
             self.saved_model_list = saved_data['selected_models']
         
             for saved_model in self.saved_model_list:         
