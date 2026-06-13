@@ -27,5 +27,6 @@ gui_data/saved_ensembles/*.json
 *.pth
 models/MDX_Net_Models/*.ckpt
 models/MDX_Net_Models/*.onnx
+models/MDX_Net_Models/*.safetensors
 models/Demucs_Models/v3_v4_repo/*.th
 models/Demucs_Models/v3_v4_repo/*.yaml

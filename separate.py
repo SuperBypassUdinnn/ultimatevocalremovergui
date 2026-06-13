@@ -105,6 +105,7 @@ class SeperateAttributes:
         self.is_mdx_combine_stems = model_data.is_mdx_combine_stems
         self.is_mdx_c = model_data.is_mdx_c
         self.mdx_c_configs = model_data.mdx_c_configs
+        self.is_roformer = getattr(model_data, 'is_roformer', False)
         self.mdxnet_stem_select = model_data.mdxnet_stem_select
         self.mixer_path = model_data.mixer_path
         self.model_samplerate = model_data.model_samplerate
@@ -742,6 +743,66 @@ class SeperateMDXC(SeperateAttributes):
         if self.is_pitch_change:
             mix, sr_pitched = spec_utils.change_pitch_semitones(mix, 44100, semitone_shift=-self.semitone_shift)
 
+        pitch_fix = lambda s:self.pitch_fix(s, sr_pitched, org_mix)
+
+        if getattr(self, 'is_roformer', False):
+            import json
+            from lib_v5.bs_roformer.modeling_bs_roformer import BSRoformerForMaskedEstimation, BSRoformerConfig
+            
+            # Default to the bundled Mini-BS-Roformer config
+            config_path = os.path.join("lib_v5", "bs_roformer", "config.json")
+            
+            # Try to see if there is a specific config next to the model
+            model_json = self.model_path.replace('.ckpt', '.json').replace('.safetensors', '.json')
+            if os.path.isfile(model_json):
+                config_path = model_json
+            else:
+                # Try mdx_c_configs folder
+                model_json_c = os.path.join("models", "MDX_Net_Models", "model_data", "mdx_c_configs", os.path.basename(model_json))
+                if os.path.isfile(model_json_c):
+                    config_path = model_json_c
+                
+            with open(config_path) as f:
+                config_dict = json.load(f)
+            config = BSRoformerConfig(**config_dict)
+            model = BSRoformerForMaskedEstimation(config)
+            
+            if self.model_path.endswith('.safetensors'):
+                from lib_v5.safetensors import load_safetensors
+                state_dict = load_safetensors(self.model_path)
+            else:
+                state_dict = torch.load(self.model_path, map_location=cpu)
+                
+            model.load_state_dict(state_dict)
+            model.to(self.device).eval()
+            
+            mix_tensor = torch.tensor(mix, dtype=torch.float32).to(self.device)
+            
+            S = config.num_stems
+            with torch.no_grad():
+                self.set_progress_bar(0.1)
+                result = model.separate(mix_tensor, batch_size=self.mdx_batch_size, verbose=True)
+                self.set_progress_bar(0.9)
+                
+            estimated_sources = result.cpu().detach().numpy()
+            del model
+            clear_gpu_cache()
+            
+            if S == 4:
+                inst_source = estimated_sources[0] + estimated_sources[1] + estimated_sources[2]
+                voc_source = estimated_sources[3]
+                sources = {
+                    VOCAL_STEM: pitch_fix(voc_source) if self.is_pitch_change else voc_source,
+                    INST_STEM: pitch_fix(inst_source) if self.is_pitch_change else inst_source
+                }
+                return sources
+            elif S > 1:
+                sources = {k: pitch_fix(v) if self.is_pitch_change else v for k, v in zip(self.mdx_c_configs.training.instruments, estimated_sources)}
+                return sources
+            else:
+                est_s = estimated_sources[0]
+                return pitch_fix(est_s) if self.is_pitch_change else est_s
+
         model = TFC_TDF_net(self.mdx_c_configs, device=self.device)
         model.load_state_dict(torch.load(self.model_path, map_location=cpu))
         model.to(self.device).eval()
@@ -783,7 +844,6 @@ class SeperateMDXC(SeperateAttributes):
 
         estimated_sources = X[..., chunk_size - hop_size:-(pad_size + chunk_size - hop_size)] / overlap
         del X
-        pitch_fix = lambda s:self.pitch_fix(s, sr_pitched, org_mix)
 
         if S > 1:
             sources = {k: pitch_fix(v) if self.is_pitch_change else v for k, v in zip(self.mdx_c_configs.training.instruments, estimated_sources.cpu().detach().numpy())}

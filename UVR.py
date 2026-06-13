@@ -2495,7 +2495,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Gets files from specified directory that ends with specified extention"""
         
         return tuple(
-            x if is_mdxnet and x.endswith(CKPT) else os.path.splitext(x)[0]
+            x if is_mdxnet and (x.endswith(CKPT) or x.endswith('.safetensors')) else os.path.splitext(x)[0]
             for x in os.listdir(directory)
             if x.endswith(ext)
         )
@@ -5685,6 +5685,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.mdx_name_select_MAPPER = json.load(urllib.request.urlopen(MDX_MODEL_NAME_DATA_LINK))
             self.demucs_name_select_MAPPER = json.load(urllib.request.urlopen(DEMUCS_MODEL_NAME_DATA_LINK))
             
+            # Inject local custom names to prevent TRvlvr wipes
+            if "mdx23c_download_list" in self.online_data:
+                for name, data in self.online_data["mdx23c_download_list"].items():
+                    if isinstance(data, dict):
+                        for filename in data.keys():
+                            self.mdx_name_select_MAPPER[filename] = name
+
+            self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Roformer Model: mini-bs-roformer-v2-46.8M"
+            
             vr_hash_MAPPER_dump = json.dumps(self.vr_hash_MAPPER, indent=4)
             with open(VR_HASH_JSON, "w") as outfile:
                 outfile.write(vr_hash_MAPPER_dump)
@@ -5947,7 +5956,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         def fix_name(name, mapper:dict): return next((new_name for old_name, new_name in mapper.items() if name in old_name), name)
         
         new_vr_models = self.get_files_from_dir(VR_MODELS_DIR, PTH)
-        new_mdx_models = self.get_files_from_dir(MDX_MODELS_DIR, (ONNX, CKPT), is_mdxnet=True)
+        new_mdx_models = self.get_files_from_dir(MDX_MODELS_DIR, (ONNX, CKPT, '.safetensors'), is_mdxnet=True)
         new_demucs_models = self.get_files_from_dir(DEMUCS_MODELS_DIR, (CKPT, '.gz', '.th')) + self.get_files_from_dir(DEMUCS_NEWER_REPO_DIR, YAML)
         new_ensembles_found = self.get_files_from_dir(ENSEMBLE_CACHE_DIR, JSON)
         new_settings_found = self.get_files_from_dir(SETTINGS_CACHE_DIR, JSON)
