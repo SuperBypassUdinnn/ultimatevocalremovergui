@@ -1509,6 +1509,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.progress_bar_main_var = tk.IntVar(value=0)
         self.inputPathsEntry_var = tk.StringVar(value='')
         self.conversion_Button_Text_var = tk.StringVar(value=START_PROCESSING)
+        self.last_loaded_ensemble = ''
         self.chosen_ensemble_var = tk.StringVar(value=CHOOSE_ENSEMBLE_OPTION)
         self.ensemble_main_stem_var = tk.StringVar(value=CHOOSE_STEM_PAIR)
         self.ensemble_type_var = tk.StringVar(value=MAX_MIN)
@@ -5256,8 +5257,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         ensemble_save = tk.Toplevel(root)
         
-        current_ensemble = self.chosen_ensemble_var.get()
-        default_save_name = current_ensemble if current_ensemble != CHOOSE_ENSEMBLE_OPTION else ''
+        default_save_name = getattr(self, 'last_loaded_ensemble', '')
         ensemble_save_var = tk.StringVar(value=default_save_name)
 
         ensemble_save_Frame = self.menu_FRAME_SET(ensemble_save)
@@ -5285,6 +5285,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             ensemble_name_Entry.grid(pady=MENU_PADDING_1)
             invalid_message = self.invalid_tooltip(ensemble_name_Entry)
             ensemble_name_Entry.focus_set()
+            if default_save_name:
+                ensemble_name_Entry.select_range(0, tk.END)
             self.spacer_label(ensemble_save_Frame)
             
             entry_rules_Label = tk.Label(ensemble_save_Frame, text=ENSEMBLE_INPUT_RULE, font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), foreground='#868687', justify="left")
@@ -5302,6 +5304,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Dumps current ensemble settings to a json named after user input"""
         
         if ensemble_save_name:
+            self.last_loaded_ensemble = ensemble_save_name
             self.chosen_ensemble_var.set(ensemble_save_name)
             ensemble_save_name = ensemble_save_name.replace(" ", "_")
             saved_data = {
@@ -6378,6 +6381,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             saved_data = json.load(open(saved_ensemble_path))
             
         if saved_data:
+            self.last_loaded_ensemble = saved_ensemble
             self.selection_action_ensemble_stems(saved_data['ensemble_main_stem'], from_menu=False)
             self.ensemble_main_stem_var.set(saved_data['ensemble_main_stem'])
             self.ensemble_type_var.set(saved_data['ensemble_type'])
