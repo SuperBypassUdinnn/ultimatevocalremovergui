@@ -16,6 +16,9 @@ gui_data/cr_text.txt
 temp_sample_clips/
 ensemble_temps/
 
+# Temp lock
+*.lock
+
 # User Saved Settings & Ensembles
 gui_data/saved_settings/*.json
 gui_data/saved_ensembles/*.json
