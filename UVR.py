@@ -9,6 +9,7 @@ import librosa
 import math
 import natsort
 import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import pickle
 import psutil
 from pyglet import font as pyglet_font
@@ -890,11 +891,11 @@ class Ensembler():
         
         if len(stem_outputs) > 1:
             spec_utils.ensemble_inputs(stem_outputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble)
-            save_format(stem_save_path, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
+            save_format(stem_save_path, self.save_format, self.mp3_bit_set, root.is_replaygain_var.get())
         
         if self.is_save_all_outputs_ensemble:
             for i in stem_outputs:
-                save_format(i, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
+                save_format(i, self.save_format, self.mp3_bit_set, root.is_replaygain_var.get())
         else:
             for i in stem_outputs:
                 try:
@@ -926,7 +927,7 @@ class Ensembler():
         algorithm_text = "" if is_bulk else f"_({root.choose_algorithm_var.get()})"
         stem_save_path = os.path.join('{}'.format(self.main_export_path),'{}{}{}.wav'.format(self.is_testing_audio, audio_file_base, algorithm_text))
         spec_utils.ensemble_inputs(audio_inputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble)
-        save_format(stem_save_path, self.save_format, self.mp3_bit_set, self.is_replaygain_var.get())
+        save_format(stem_save_path, self.save_format, self.mp3_bit_set, root.is_replaygain_var.get())
 
     def get_files_to_ensemble(self, folder="", prefix="", suffix=""):
         """Grab all the files to be ensembled"""
@@ -6704,33 +6705,35 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.update_queue_ui_display()
 
     def update_queue_ui_display(self):
-        if hasattr(self, 'queue_treeview') and self.queue_treeview and self.queue_treeview.winfo_exists():
-            # Clear existing items
-            for item in self.queue_treeview.get_children():
-                self.queue_treeview.delete(item)
-            # Populate with all tasks (new-old order, newest at top)
-            for task in reversed(self.processing_queue):
-                inputs_str = ", ".join(os.path.basename(p) for p in task.input_paths)
-                if len(task.input_paths) > 2:
-                    inputs_str = f"{len(task.input_paths)} files: " + ", ".join(os.path.basename(p) for p in task.input_paths[:2]) + "..."
-                
-                if task.process_method == AUDIO_TOOLS:
-                    method_str = task.chosen_audio_tool
-                else:
-                    if task.process_method == ENSEMBLE_MODE:
-                        method_str = "Ensemble"
+        def _update():
+            if hasattr(self, 'queue_treeview') and self.queue_treeview and self.queue_treeview.winfo_exists():
+                # Clear existing items
+                for item in self.queue_treeview.get_children():
+                    self.queue_treeview.delete(item)
+                # Populate with all tasks (new-old order, newest at top)
+                for task in reversed(list(self.processing_queue)):
+                    inputs_str = ", ".join(os.path.basename(p) for p in task.input_paths)
+                    if len(task.input_paths) > 2:
+                        inputs_str = f"{len(task.input_paths)} files: " + ", ".join(os.path.basename(p) for p in task.input_paths[:2]) + "..."
+                    
+                    if task.process_method == AUDIO_TOOLS:
+                        method_str = task.chosen_audio_tool
                     else:
-                        if isinstance(task.model_data, list) and task.model_data:
-                            method_str = ", ".join(m.model_name for m in task.model_data)
-                        elif task.model_data:
-                            method_str = task.model_data.model_name
+                        if task.process_method == ENSEMBLE_MODE:
+                            method_str = "Ensemble"
                         else:
-                            method_str = task.process_method
-                            
-                status_str = task.status
-                if task.is_paused and task.status == TASK_STATUS_PENDING:
-                    status_str = TASK_STATUS_PAUSED
-                self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, status_str))
+                            if isinstance(task.model_data, list) and task.model_data:
+                                method_str = ", ".join(m.model_name for m in task.model_data)
+                            elif task.model_data:
+                                method_str = task.model_data.model_name
+                            else:
+                                method_str = task.process_method
+                                
+                    status_str = task.status
+                    if task.is_paused and task.status == TASK_STATUS_PENDING:
+                        status_str = TASK_STATUS_PAUSED
+                    self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, status_str))
+        self.after(0, _update)
 
     def pause_resume_selected_task(self):
         if not hasattr(self, 'queue_treeview') or not self.queue_treeview:
