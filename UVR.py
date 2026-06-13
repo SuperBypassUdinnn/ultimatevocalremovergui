@@ -4429,7 +4429,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         vr_download_list = model_data["vr_download_list"]
         mdx_download_list = model_data["mdx_download_list"]
         demucs_download_list = model_data["demucs_download_list"]
-        mdx_download_list.update(model_data["mdx23c_download_list"])
+        mdx_download_list.update(model_data.get("mdx23c_download_list", {}))
+        mdx_download_list.update(model_data.get("roformer_download_list", {}))
+        mdx_download_list.update(model_data.get("other_network_list", {}))
+        mdx_download_list.update(model_data.get("other_network_list_new", {}))
 
         def create_link(link):
             final_link = lambda:webbrowser.open_new_tab(link)
@@ -5734,7 +5737,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.vr_download_list = self.online_data["vr_download_list"]
         self.mdx_download_list = self.online_data["mdx_download_list"]
         self.demucs_download_list = self.online_data["demucs_download_list"]
-        self.mdx_download_list.update(self.online_data["mdx23c_download_list"])
+        self.mdx_download_list.update(self.online_data.get("mdx23c_download_list", {}))
+        self.mdx_download_list.update(self.online_data.get("roformer_download_list", {}))
+        self.mdx_download_list.update(self.online_data.get("other_network_list", {}))
+        self.mdx_download_list.update(self.online_data.get("other_network_list_new", {}))
         
         if not self.decoded_vip_link is NO_CODE:
             self.vr_download_list.update(self.online_data["vr_download_vip_list"])
