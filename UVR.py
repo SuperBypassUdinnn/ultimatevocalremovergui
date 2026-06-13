@@ -6374,6 +6374,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Loads the data from selected saved ensemble"""
         
         saved_data = None
+        original_saved_ensemble = saved_ensemble
         saved_ensemble = saved_ensemble.replace(" ", "_")
         saved_ensemble_path = os.path.join(ENSEMBLE_CACHE_DIR, f'{saved_ensemble}.json')
 
@@ -6381,7 +6382,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             saved_data = json.load(open(saved_ensemble_path))
             
         if saved_data:
-            self.last_loaded_ensemble = saved_ensemble
+            self.last_loaded_ensemble = original_saved_ensemble
             self.selection_action_ensemble_stems(saved_data['ensemble_main_stem'], from_menu=False)
             self.ensemble_main_stem_var.set(saved_data['ensemble_main_stem'])
             self.ensemble_type_var.set(saved_data['ensemble_type'])
