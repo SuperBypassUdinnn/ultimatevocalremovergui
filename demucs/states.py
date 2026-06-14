@@ -43,7 +43,20 @@ def load_model(path_or_package, strict=False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             path = path_or_package
-            package = torch.load(path, map_location='cpu', weights_only=False)
+            try:
+                package = torch.load(path, map_location='cpu', weights_only=False)
+            except Exception:
+                # Fallback for PyTorch versions that restrict unsafe globals
+                try:
+                    from demucs.htdemucs import HTDemucs
+                    from demucs.hdemucs import HDemucs
+                    from demucs.demucs import Demucs
+                    safe_globals = [HTDemucs, HDemucs, Demucs]
+                    if hasattr(torch.serialization, 'add_safe_globals'):
+                        torch.serialization.add_safe_globals(safe_globals)
+                    package = torch.load(path, map_location='cpu', weights_only=True)
+                except Exception:
+                    package = torch.load(path, map_location='cpu', weights_only=False)
     else:
         raise ValueError(f"Invalid type for {path_or_package}.")
 
