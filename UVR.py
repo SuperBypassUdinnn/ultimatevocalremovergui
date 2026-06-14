@@ -4429,6 +4429,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         vr_download_list = model_data["vr_download_list"]
         mdx_download_list = model_data["mdx_download_list"]
         demucs_download_list = model_data["demucs_download_list"]
+        mdx_download_list.update(model_data.get("mdx23_download_list", {}))
         mdx_download_list.update(model_data.get("mdx23c_download_list", {}))
         mdx_download_list.update(model_data.get("roformer_download_list", {}))
         mdx_download_list.update(model_data.get("other_network_list", {}))
@@ -5738,6 +5739,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.vr_download_list = self.online_data["vr_download_list"]
         self.mdx_download_list = self.online_data["mdx_download_list"]
         self.demucs_download_list = self.online_data["demucs_download_list"]
+        self.mdx_download_list.update(self.online_data.get("mdx23_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("mdx23c_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("roformer_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("other_network_list", {}))
@@ -5746,6 +5748,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         if not self.decoded_vip_link is NO_CODE:
             self.vr_download_list.update(self.online_data["vr_download_vip_list"])
             self.mdx_download_list.update(self.online_data["mdx_download_vip_list"])
+            if "mdx23_download_vip_list" in self.online_data:
+                self.mdx_download_list.update(self.online_data["mdx23_download_vip_list"])
             self.mdx_download_list.update(self.online_data["mdx23c_download_vip_list"])
                      
         def configure_combobox(combobox:ComboBoxMenu, values:list, variable:tk.StringVar, arch_type, name):
@@ -5807,18 +5811,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.demucs_name_select_MAPPER = json.load(urllib.request.urlopen(DEMUCS_MODEL_NAME_DATA_LINK))
             
             # Inject local custom names to prevent TRvlvr wipes
-            if "mdx23c_download_list" in self.online_data:
-                for name, data in self.online_data["mdx23c_download_list"].items():
-                    if isinstance(data, dict):
-                        for filename in data.keys():
-                            self.mdx_name_select_MAPPER[filename] = name
+            for download_list_key in ["mdx23_download_list", "mdx23c_download_list"]:
+                if download_list_key in self.online_data:
+                    for name, data in self.online_data[download_list_key].items():
+                        if isinstance(data, dict):
+                            for filename in data.keys():
+                                self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
             
-            # Clean up MDX23C prefixes that get pulled from online_data
+            # Clean up MDX23C / MDX prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():
-                if v.startswith(f"{MDX_23_NAME}: "):
-                    self.mdx_name_select_MAPPER[k] = v.replace(f"{MDX_23_NAME}: ", "")
+                if isinstance(v, str):
+                    for prefix in [f"{MDX_23_NAME}: ", f"{MDX_23_NAME} VIP: ", "MDX23C Model: ", "MDX23C Model VIP: ", "MDX-Net Model: ", "MDX-Net Model VIP: "]:
+                        if v.startswith(prefix):
+                            v = v.replace(prefix, "")
+                    self.mdx_name_select_MAPPER[k] = v
             
             vr_hash_MAPPER_dump = json.dumps(self.vr_hash_MAPPER, indent=4)
             with open(VR_HASH_JSON, "w") as outfile:
