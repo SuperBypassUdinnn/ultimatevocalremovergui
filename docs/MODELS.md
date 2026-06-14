@@ -68,15 +68,7 @@ Berikut adalah daftar lengkap semua model yang tersedia dan dapat diunduh di apl
 - MDX23C Model: MDX23C-InstVoc HQ
 
 ## Roformer (Tergabung di Kategori MDX-Net pada UVR)
-- Roformer Model: BS-Roformer-Viperx-1297
-- Roformer Model: BS-Roformer-Viperx-1296
-- Roformer Model: BS-Roformer-Viperx-1053
-- Roformer Model: Mel-Roformer-Viperx-1143
-- Roformer Model: MelBand Roformer Kim | Inst V1 by Unwa
-- Roformer Model: MelBand Roformer Kim | Inst V2 by Unwa
-- Roformer Model: MelBand Roformer Kim | InstVoc Duality V1 by Unwa
-- Roformer Model: MelBand Roformer Kim | InstVoc Duality V2 by Unwa
-- Roformer Model: mini-bs-roformer-v2-46.8M *(Baru ditambahkan)*
+- Roformer Model: mini-bs-roformer-v2-46.8M
 
 ## Demucs
 - Demucs v4: htdemucs_ft
