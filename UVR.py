@@ -4429,7 +4429,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         vr_download_list = model_data["vr_download_list"]
         mdx_download_list = model_data["mdx_download_list"]
         demucs_download_list = model_data["demucs_download_list"]
-        mdx_download_list.update(model_data.get("mdx23_download_list", {}))
         mdx_download_list.update(model_data.get("mdx23c_download_list", {}))
         mdx_download_list.update(model_data.get("roformer_download_list", {}))
         mdx_download_list.update(model_data.get("other_network_list", {}))
@@ -4453,11 +4452,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 main_selection = vr_download_list[main_selection]
                 model_dir = VR_MODELS_DIR
             elif MDX_ARCH_TYPE in main_selection or MDX_23_NAME in main_selection:
-                if isinstance(mdx_download_list[main_selection], dict):
-                    main_selection = mdx_download_list[main_selection]
-                    main_selection = list(main_selection.keys())[0]
+                model_data = mdx_download_list[main_selection]
+                if isinstance(model_data, dict):
+                    has_custom_urls = any(val.startswith('http') for val in model_data.values())
+                    if has_custom_urls:
+                        main_selection = model_data
+                    else:
+                        main_selection = list(model_data.keys())[0]
                 else:
-                    main_selection = mdx_download_list[main_selection]
+                    main_selection = model_data
                     
                 model_dir = MDX_MODELS_DIR
 
@@ -4508,20 +4511,33 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             model_name = mdx_download_list[model_selection_mdx]
             
             if isinstance(model_name, dict):
-                items_list = list(model_name.items())
-                model_name, config = items_list[0]
-                config_link = f"{MDX23_CONFIG_CHECKS}{config}"
-                config_local = os.path.join(MDX_C_CONFIG_PATH, config)
-                if not os.path.isfile(config_local):
-                    try:
-                        with urllib.request.urlopen(config_link) as response:
-                            with open(config_local, 'wb') as out_file:
-                                out_file.write(response.read())
-                    except Exception as e:
-                        model_name = None
+                model_filename = list(model_name.keys())[0]
+                config_filename = None
+                config_link = None
+                for key, val in model_name.items():
+                    if key.endswith('.yaml') or key.endswith('.json'):
+                        config_filename = key
+                        if val.startswith('http'):
+                            config_link = val
+                        else:
+                            config_link = f"{MDX23_CONFIG_CHECKS}{val}"
+                    elif key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX):
+                        model_filename = key
+                        if val.endswith('.yaml') or val.endswith('.json'):
+                            config_filename = val
+                            config_link = f"{MDX23_CONFIG_CHECKS}{val}"
+                model_name = model_filename
+                if config_filename and config_link:
+                    config_local = os.path.join(MDX_C_CONFIG_PATH, config_filename)
+                    if not os.path.isfile(config_local):
+                        try:
+                            with urllib.request.urlopen(config_link) as response:
+                                with open(config_local, 'wb') as out_file:
+                                    out_file.write(response.read())
+                        except Exception as e:
+                            print(f"Error downloading config in manual downloads: {e}")
+                            model_name = None
 
-            #print(model_name)
-                
             if model_name: 
                 if not os.path.isfile(os.path.join(MDX_MODELS_DIR, model_name)):
                     manual_downloads_menu_select_MDX_Option.add_radiobutton(label=model_selection_mdx, variable=model_selection_var, command=get_links)
@@ -5739,7 +5755,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.vr_download_list = self.online_data["vr_download_list"]
         self.mdx_download_list = self.online_data["mdx_download_list"]
         self.demucs_download_list = self.online_data["demucs_download_list"]
-        self.mdx_download_list.update(self.online_data.get("mdx23_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("mdx23c_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("roformer_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("other_network_list", {}))
@@ -5748,8 +5763,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         if not self.decoded_vip_link is NO_CODE:
             self.vr_download_list.update(self.online_data["vr_download_vip_list"])
             self.mdx_download_list.update(self.online_data["mdx_download_vip_list"])
-            if "mdx23_download_vip_list" in self.online_data:
-                self.mdx_download_list.update(self.online_data["mdx23_download_vip_list"])
             self.mdx_download_list.update(self.online_data["mdx23c_download_vip_list"])
                      
         def configure_combobox(combobox:ComboBoxMenu, values:list, variable:tk.StringVar, arch_type, name):
@@ -5768,14 +5781,31 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         if model_type in [MDX_ARCH_TYPE, ALL_TYPES]:
             for (selectable, model) in self.mdx_download_list.items():
                 if isinstance(model, dict):
-                    items_list = list(model.items())
-                    model_name, config = items_list[0]
-                    config_link = f"{MDX23_CONFIG_CHECKS}{config}"
-                    config_local = os.path.join(MDX_C_CONFIG_PATH, config)
-                    if not os.path.isfile(config_local):
-                        with urllib.request.urlopen(config_link) as response:
-                            with open(config_local, 'wb') as out_file:
-                                out_file.write(response.read())
+                    model_name = list(model.keys())[0]
+                    config_filename = None
+                    config_link = None
+                    for key, val in model.items():
+                        if key.endswith('.yaml') or key.endswith('.json'):
+                            config_filename = key
+                            if val.startswith('http'):
+                                config_link = val
+                            else:
+                                config_link = f"{MDX23_CONFIG_CHECKS}{val}"
+                        elif key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX):
+                            model_name = key
+                            if val.endswith('.yaml') or val.endswith('.json'):
+                                config_filename = val
+                                config_link = f"{MDX23_CONFIG_CHECKS}{val}"
+                    
+                    if config_filename and config_link:
+                        config_local = os.path.join(MDX_C_CONFIG_PATH, config_filename)
+                        if not os.path.isfile(config_local):
+                            try:
+                                with urllib.request.urlopen(config_link) as response:
+                                    with open(config_local, 'wb') as out_file:
+                                        out_file.write(response.read())
+                            except Exception as e:
+                                print(f"Error downloading config for {selectable}: {e}")
                 else:
                     model_name = str(model)
 
@@ -5811,22 +5841,18 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.demucs_name_select_MAPPER = json.load(urllib.request.urlopen(DEMUCS_MODEL_NAME_DATA_LINK))
             
             # Inject local custom names to prevent TRvlvr wipes
-            for download_list_key in ["mdx23_download_list", "mdx23c_download_list"]:
-                if download_list_key in self.online_data:
-                    for name, data in self.online_data[download_list_key].items():
-                        if isinstance(data, dict):
-                            for filename in data.keys():
-                                self.mdx_name_select_MAPPER[filename] = name
+            if "mdx23c_download_list" in self.online_data:
+                for name, data in self.online_data["mdx23c_download_list"].items():
+                    if isinstance(data, dict):
+                        for filename in data.keys():
+                            self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
             
-            # Clean up MDX23C / MDX prefixes that get pulled from online_data
+            # Clean up MDX23C prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():
-                if isinstance(v, str):
-                    for prefix in [f"{MDX_23_NAME}: ", f"{MDX_23_NAME} VIP: ", "MDX23C Model: ", "MDX23C Model VIP: ", "MDX-Net Model: ", "MDX-Net Model VIP: "]:
-                        if v.startswith(prefix):
-                            v = v.replace(prefix, "")
-                    self.mdx_name_select_MAPPER[k] = v
+                if v.startswith(f"{MDX_23_NAME}: "):
+                    self.mdx_name_select_MAPPER[k] = v.replace(f"{MDX_23_NAME}: ", "")
             
             vr_hash_MAPPER_dump = json.dumps(self.vr_hash_MAPPER, indent=4)
             with open(VR_HASH_JSON, "w") as outfile:
@@ -5909,9 +5935,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 if selection in selected_model:
                     if isinstance(selected_model[1], dict):
                         model_name = list(selected_model[1].keys())[0]
+                        download_link = "{}{}".format(model_repo, model_name)
+                        for key, val in selected_model[1].items():
+                            if key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX):
+                                model_name = key
+                                if val.startswith('http'):
+                                    download_link = val
+                                break
                     else:
                         model_name = str(selected_model[1])
-                    self.download_link_path_var.set("{}{}".format(model_repo, model_name))
+                        download_link = "{}{}".format(model_repo, model_name)
+                    self.download_link_path_var.set(download_link)
                     self.download_save_path_var.set(os.path.join(MDX_MODELS_DIR, model_name))
                     break
 

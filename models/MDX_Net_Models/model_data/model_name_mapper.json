@@ -21,6 +21,8 @@
     "Kim_Vocal_2": "Kim Vocal 2",
     "Kim_Inst": "Kim Inst",
     "MDX23C-8KFFT-InstVoc_HQ.ckpt": "MDX23C-InstVoc HQ",
+    "MDX23C-8KFFT-InstVoc_HQ_2.ckpt": "MDX23C-InstVoc HQ 2",
+    "MDX23C_D1581.ckpt": "MDX23C-InstVoc D1581",
     "Reverb_HQ_By_FoxJoy": "Reverb HQ",
     "model_bs_roformer_ep_317_sdr_12.9755.ckpt": "BS-Roformer-Viperx-1297",
     "model_bs_roformer_ep_368_sdr_12.9628.ckpt": "BS-Roformer-Viperx-1296",
