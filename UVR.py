@@ -6367,6 +6367,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.update_stem_checkbox_labels(VOCAL_STEM)
             self.is_stem_only_Options_Enable()
         else:
+            self.update_stem_checkbox_labels(self.mdxnet_stems_var.get())
             self.is_stem_only_Options_Enable()
 
         if not self.mdx_net_model_var.get() == CHOOSE_MODEL:
