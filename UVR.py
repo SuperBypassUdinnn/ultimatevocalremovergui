@@ -5621,6 +5621,18 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             is_new_update = False
             try:
                 self.online_data = json.load(urllib.request.urlopen(DOWNLOAD_CHECKS))
+                
+                # Filter out all unwanted Roformer models from online data
+                if isinstance(self.online_data, dict):
+                    if "roformer_download_list" in self.online_data:
+                        self.online_data["roformer_download_list"] = {}
+                    for list_key in ["mdx_download_list", "other_network_list", "other_network_list_new"]:
+                        if list_key in self.online_data and isinstance(self.online_data[list_key], dict):
+                            self.online_data[list_key] = {
+                                k: v for k, v in self.online_data[list_key].items()
+                                if not (("roformer" in k.lower() or "melband" in k.lower() or "ro-" in k.lower() or "mb-" in k.lower()) and "mini-bs-roformer" not in k.lower())
+                            }
+                
                 self.is_online = True
 
                 try:
@@ -5848,6 +5860,16 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
+            
+            # Filter out all unwanted Roformer models from the mapper and hash tables
+            self.mdx_name_select_MAPPER = {
+                k: v for k, v in self.mdx_name_select_MAPPER.items()
+                if not (("roformer" in k.lower() or "melband" in k.lower() or "roformer" in v.lower() or "ro-" in v.lower() or "mb-" in v.lower()) and "mini-bs-roformer" not in k.lower() and "mini-bs-roformer" not in v.lower())
+            }
+            self.mdx_hash_MAPPER = {
+                k: v for k, v in self.mdx_hash_MAPPER.items()
+                if not (isinstance(v, dict) and (v.get("is_roformer", False) or "roformer" in str(v.get("config_yaml", "")).lower()) and "mini" not in str(v).lower())
+            }
             
             # Clean up MDX23C prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():
